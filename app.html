@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Plataforma | VAELITH LABS</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js"}}</script>
+</head>
+<body class="app-body">
+<div class="app-shell">
+  <aside class="sidebar">
+    <a class="brand" href="/"><img src="/assets/vaelith-icon-white.png" alt=""><div><strong>VAELITH LABS</strong><small>Soluções em Engenharia</small></div></a>
+    <div class="sidebar-project"><label>Empreendimento ativo</label><select id="projectSelect"></select></div>
+    <nav class="app-nav" id="appNav">
+      <small>Empreendimento</small>
+      <button class="active" data-view="dashboard"><span>Visão geral</span></button>
+      <button data-view="project"><span>Dados do projeto</span></button>
+      <button data-view="files"><span>Arquivos</span><b id="navFilesCount">0</b></button>
+      <small>Compatibilização</small>
+      <button data-view="compatibility"><span>Compatibilização geral</span></button>
+      <button data-view="viewer"><span>Maquete 3D</span></button>
+      <button data-view="issues"><span>Interferências</span><b id="navIssuesCount">0</b></button>
+      <button data-view="budget"><span>Escopo e orçamento</span></button>
+      <button data-view="schedule"><span>Cronograma</span></button>
+      <button data-view="revisions"><span>Revisões</span></button>
+      <small>Após a versão-base</small>
+      <button data-view="changes"><span>Análise de mudanças</span></button>
+      <button data-view="reports"><span>Relatórios</span></button>
+    </nav>
+    <div class="sidebar-bottom"><div class="user-chip"><div class="user-avatar" id="userAvatar">V</div><div><strong id="userName">Usuário</strong><small id="userEmail"></small></div></div></div>
+  </aside>
+
+  <main class="app-main">
+    <header class="app-topbar"><button class="mobile-menu" id="mobileMenu">☰</button><div><small id="topEyebrow">Empreendimento</small><h1 id="topTitle">Visão geral</h1></div><div class="top-actions"><span class="baseline-chip" id="baselineChip">Base não aprovada</span><button class="button button-ghost button-small" id="newProjectBtn">Novo empreendimento</button><button class="button button-ghost button-small" id="logoutBtn">Sair</button></div></header>
+
+    <section class="view active" data-view-panel="dashboard">
+      <div class="dashboard-hero">
+        <div><span class="eyebrow">Fluxo principal da VAELITH</span><h2>Organize a base completa e compatibilize antes de liberar a obra.</h2><p>O sistema analisa os arquivos do empreendimento inteiro. A solicitação de mudança só entra depois, sobre uma versão-base controlada.</p><div class="view-actions"><button class="button button-ghost" data-go="files">Adicionar arquivos</button><button class="button button-accent" id="dashboardRunBtn">Iniciar compatibilização geral</button></div></div>
+        <div class="readiness-ring"><div><strong id="readinessValue">0%</strong><span>qualidade da base</span></div></div>
+      </div>
+      <div class="kpi-grid six"><article class="kpi"><small>Arquivos</small><strong id="kpiFiles">0</strong><span>no empreendimento</span></article><article class="kpi"><small>Disciplinas</small><strong id="kpiDisciplines">0</strong><span>classificadas</span></article><article class="kpi"><small>Modelos IFC</small><strong id="kpiIfc">0</strong><span>para a maquete</span></article><article class="kpi"><small>Interferências</small><strong id="kpiIssues">—</strong><span>última análise</span></article><article class="kpi"><small>Alta prioridade</small><strong id="kpiHigh">—</strong><span>críticas ou altas</span></article><article class="kpi"><small>Versão-base</small><strong id="kpiBaseline">Pendente</strong><span>status de liberação</span></article></div>
+      <div class="dashboard-grid"><article class="panel"><div class="panel-header"><div><small>Preparação da análise</small><h3>Checklist do empreendimento</h3></div></div><div id="readinessChecklist" class="onboarding"></div></article><article class="panel"><div class="panel-header"><div><small>Prioridades</small><h3>Ocorrências que exigem atenção</h3></div><button class="link-button" data-go="issues">Ver todas</button></div><div id="priorityIssues" class="alert-list"></div></article></div>
+      <article class="panel process-panel"><div class="panel-header"><div><small>Jornada</small><h3>Como a plataforma será usada</h3></div></div><div class="process-track"><div class="done"><b>1</b><span>Criar empreendimento</span></div><div id="stepFiles"><b>2</b><span>Adicionar arquivos</span></div><div id="stepCompat"><b>3</b><span>Compatibilizar</span></div><div id="stepResolve"><b>4</b><span>Resolver ocorrências</span></div><div id="stepBaseline"><b>5</b><span>Aprovar versão-base</span></div><div><b>6</b><span>Analisar mudanças</span></div></div></article>
+    </section>
+
+    <section class="view" data-view-panel="project">
+      <div class="view-header"><div><span class="eyebrow">Configuração</span><h2>Dados do empreendimento.</h2><p>Defina a referência da obra e quais disciplinas devem obrigatoriamente participar da compatibilização.</p></div></div>
+      <form class="panel form-grid" id="projectSettingsForm">
+        <label class="field"><span>Nome do empreendimento</span><input id="settingsName" required></label><label class="field"><span>Cliente</span><input id="settingsClient"></label><label class="field"><span>Localização</span><input id="settingsLocation"></label><label class="field"><span>Fase</span><select id="settingsPhase"><option>Concepção</option><option>Projeto básico</option><option>Projeto executivo</option><option selected>Pré-obra</option><option>Execução</option></select></label><label class="field wide"><span>Descrição</span><textarea id="settingsDescription"></textarea></label><div class="wide"><span class="field-label">Disciplinas esperadas</span><div class="discipline-checks" id="expectedDisciplines"></div></div><div class="wide form-actions"><button class="button button-accent" type="submit">Salvar configuração</button></div>
+      </form>
+    </section>
+
+    <section class="view" data-view-panel="files">
+      <div class="view-header"><div><span class="eyebrow">Central de arquivos</span><h2>Adicione todos os projetos e documentos da obra.</h2><p>Modelos, desenhos, memoriais, escopo, orçamento, cronograma e evidências ficam vinculados ao mesmo empreendimento.</p></div><div class="view-actions"><button class="button button-accent" id="filesRunBtn">Compatibilizar agora</button></div></div>
+      <article class="panel upload-panel"><div class="upload-meta"><label class="field"><span>Disciplina</span><select id="uploadDiscipline"><option value="">Detectar pelo nome</option></select></label><label class="field"><span>Revisão</span><input id="uploadRevision" placeholder="Ex.: R03"></label><label class="field"><span>Categoria</span><select id="uploadCategory"><option value="">Detectar automaticamente</option><option>Modelo BIM</option><option>Desenho ou evidência</option><option>Escopo e memorial</option><option>Orçamento</option><option>Cronograma</option><option>Planilha técnica</option><option>Documento</option></select></label></div><label class="upload-zone" id="uploadZone"><input id="fileInput" type="file" multiple hidden accept=".ifc,.rvt,.dwg,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.mpp,.jpg,.jpeg,.png,.webp,.tif,.tiff,.json"><div class="upload-icon">＋</div><strong>Arraste os arquivos ou clique para selecionar</strong><p>IFC, RVT, DWG, PDF, Word, Excel, CSV, MPP e imagens. Para análise geométrica de RVT/DWG, envie também IFC.</p><span class="button button-accent">Selecionar arquivos</span></label><div class="viewer-status" id="uploadStatus"></div></article>
+      <div class="file-summary" id="fileSummary"></div>
+      <div class="file-table-wrap"><table class="data-table"><thead><tr><th>Arquivo</th><th>Categoria</th><th>Disciplina</th><th>Revisão</th><th>Processamento</th><th>Resumo</th><th></th></tr></thead><tbody id="fileRows"></tbody></table></div>
+    </section>
+
+    <section class="view" data-view-panel="compatibility">
+      <div class="view-header"><div><span class="eyebrow">Núcleo principal</span><h2>Compatibilização geral do empreendimento.</h2><p>A análise cruza a base inteira, independentemente de existir solicitação de mudança.</p></div><div class="view-actions"><button class="button button-accent" id="runCompatibilityBtn">Executar compatibilização</button></div></div>
+      <div id="compatibilityContent" class="analysis-empty"><h3>Nenhuma compatibilização executada</h3><p>Adicione os arquivos do empreendimento e execute a primeira análise.</p><button class="button button-accent" data-go="files">Adicionar arquivos</button></div>
+    </section>
+
+    <section class="view" data-view-panel="viewer">
+      <div class="view-header"><div><span class="eyebrow">Localização visual</span><h2>Maquete federada 3D.</h2><p>Carregue os modelos IFC, navegue pelas disciplinas e execute uma triagem geométrica. As ocorrências salvas entram no histórico do empreendimento.</p></div><div class="view-actions"><button class="button button-ghost" id="loadIfcBtn">Carregar modelos IFC</button><button class="button button-accent" id="runClashBtn">Executar pré-clash</button><button class="button button-ghost" id="saveClashesBtn">Salvar interferências</button></div></div>
+      <div class="viewer-note"><strong>Importante:</strong> o pré-clash desta versão usa envelopes geométricos no navegador. Ele serve para triagem e precisa de validação técnica.</div>
+      <div class="viewer-layout"><div class="viewer-canvas" id="viewerCanvas"><div class="viewer-toolbar"><button id="fitViewBtn">Enquadrar</button><button id="resetViewBtn">Limpar</button></div><div class="viewer-placeholder" id="viewerPlaceholder"><div><h3>Aguardando modelos IFC</h3><p>Adicione pelo menos dois modelos IFC de disciplinas diferentes e clique em “Carregar modelos IFC”.</p></div></div></div><aside class="viewer-side"><article class="panel"><div class="panel-header"><div><small>Modelos</small><h3>Disciplinas carregadas</h3></div></div><div class="model-list" id="modelList"><p class="muted">Nenhum modelo carregado.</p></div><div class="viewer-status" id="viewerStatus"></div></article><article class="panel"><div class="panel-header"><div><small>Interferências</small><h3>Pré-clashes localizados</h3></div><span class="status warning">Triagem</span></div><div class="clash-list" id="clashList"><p class="muted">Execute o pré-clash após carregar os modelos.</p></div></article></aside></div>
+    </section>
+
+    <section class="view" data-view-panel="issues">
+      <div class="view-header"><div><span class="eyebrow">Gestão de ocorrências</span><h2>Interferências, divergências e pendências.</h2><p>Cada ocorrência possui prioridade, evidência, confiança, responsável e status de resolução.</p></div><div class="view-actions"><button class="button button-accent" data-go="compatibility">Nova compatibilização</button></div></div>
+      <article class="panel filters"><select id="issueSeverityFilter"><option value="">Todas as prioridades</option><option value="critical">Crítica</option><option value="high">Alta</option><option value="warning">Média</option><option value="info">Informativa</option></select><select id="issueStatusFilter"><option value="">Todos os status</option><option>Aberta</option><option>Em tratamento</option><option>Resolvida</option><option>Descartada</option></select><input id="issueSearch" placeholder="Buscar por código, título ou disciplina"></article>
+      <div id="issuesTable"></div>
+    </section>
+
+    <section class="view" data-view-panel="budget"><div class="view-header"><div><span class="eyebrow">Compatibilidade financeira</span><h2>Escopo e orçamento.</h2><p>Veja os itens reconhecidos, valores calculáveis, possíveis duplicidades e conceitos presentes no projeto sem correspondência orçamentária.</p></div></div><div id="budgetContent" class="analysis-empty"><h3>Aguardando compatibilização</h3><p>Execute a análise geral para cruzar projeto, escopo e orçamento.</p></div></section>
+
+    <section class="view" data-view-panel="schedule"><div class="view-header"><div><span class="eyebrow">Compatibilidade executiva</span><h2>Cronograma.</h2><p>Analise atividades reconhecidas, dependências ausentes e serviços do projeto sem correspondência clara no planejamento.</p></div></div><div id="scheduleContent" class="analysis-empty"><h3>Aguardando compatibilização</h3><p>Execute a análise geral para cruzar projeto, escopo e cronograma.</p></div></section>
+
+    <section class="view" data-view-panel="revisions"><div class="view-header"><div><span class="eyebrow">Controle de informação</span><h2>Revisões e comparações.</h2><p>Confira a revisão mais recente por disciplina e as alterações identificadas entre arquivos IFC e documentos.</p></div></div><div class="analysis-grid"><article class="panel"><div class="panel-header"><div><small>Matriz</small><h3>Última revisão por disciplina</h3></div></div><div id="revisionMatrix"></div></article><article class="panel"><div class="panel-header"><div><small>Modelos IFC</small><h3>Diferenças entre revisões</h3></div></div><div id="ifcComparisons"></div></article><article class="panel"><div class="panel-header"><div><small>Documentos</small><h3>Similaridade entre versões</h3></div></div><div id="textComparisons"></div></article></div></section>
+
+    <section class="view" data-view-panel="changes">
+      <div class="view-header"><div><span class="eyebrow">Módulo complementar</span><h2>Análise de mudanças.</h2><p>Cadastre uma alteração somente depois da compatibilização geral. A análise usa a versão-base como referência.</p></div><div class="baseline-message" id="changeBaselineStatus"></div></div>
+      <div class="change-layout"><form class="panel form-grid" id="changeForm"><label class="field"><span>Código</span><input id="changeCode" placeholder="SM-001"></label><label class="field"><span>Título</span><input id="changeTitle" required placeholder="Ex.: Deslocamento da porta da sala 02"></label><label class="field"><span>Elemento</span><input id="changeElement" placeholder="Ex.: Porta P-034"></label><label class="field"><span>Localização</span><input id="changeLocation" placeholder="Ex.: 2º pavimento · Sala 02"></label><label class="field"><span>Etapa atual</span><select id="changeStage"><option>Projeto</option><option>Contratação</option><option>Execução não iniciada</option><option>Execução em andamento</option><option>Serviço já executado</option></select></label><label class="field"><span>Prazo-base</span><input id="changeDeadline" type="date"></label><label class="field wide"><span>O que foi solicitado</span><textarea id="changeRequest" required></textarea></label><label class="field wide"><span>Motivo da mudança</span><textarea id="changeReason"></textarea></label><div class="wide form-actions"><button class="button button-accent" type="submit">Cadastrar mudança</button></div></form><article class="panel"><div class="panel-header"><div><small>Histórico</small><h3>Mudanças cadastradas</h3></div></div><div id="changeList" class="change-list"></div></article></div>
+      <div id="changeAnalysisContent"></div>
+    </section>
+
+    <section class="view" data-view-panel="reports"><div class="view-header"><div><span class="eyebrow">Saídas e rastreabilidade</span><h2>Relatórios.</h2><p>Exporte a compatibilização geral ou a última análise de mudança em PDF, Word, Excel ou JSON.</p></div></div><div class="report-cards"><article class="panel"><span class="eyebrow">Relatório principal</span><h3>Compatibilização geral</h3><p>Inventário, ocorrências, escopo, orçamento, cronograma, revisões, limitações e linha de raciocínio.</p><div class="export-row"><button data-export-mode="compatibility" data-export="pdf" class="button button-accent">PDF</button><button data-export-mode="compatibility" data-export="docx" class="button button-ghost">Word</button><button data-export-mode="compatibility" data-export="xlsx" class="button button-ghost">Excel</button><button data-export-mode="compatibility" data-export="json" class="button button-ghost">JSON</button></div></article><article class="panel"><span class="eyebrow">Módulo complementar</span><h3>Impacto da mudança</h3><p>Solicitação, disciplinas potencialmente afetadas, relações orçamentárias, atividades e limitações.</p><div class="export-row"><button data-export-mode="change" data-export="pdf" class="button button-accent">PDF</button><button data-export-mode="change" data-export="docx" class="button button-ghost">Word</button><button data-export-mode="change" data-export="xlsx" class="button button-ghost">Excel</button><button data-export-mode="change" data-export="json" class="button button-ghost">JSON</button></div></article></div><article class="report-sheet"><div class="report-brand"><div><strong>VAELITH LABS</strong><small>Soluções em Engenharia</small></div><div><strong id="reportProject">Empreendimento</strong><small>Relatório de compatibilização</small></div></div><h1>Conclusão mais recente</h1><p id="reportConclusion">Execute uma compatibilização.</p><h2>Linha de raciocínio</h2><div id="reportTrace"></div></article></section>
+  </main>
+</div>
+
+<div class="modal-backdrop hidden" id="projectModal"><div class="modal large"><div class="modal-header"><div><span class="eyebrow">Novo empreendimento</span><h3>Criar projeto</h3></div><button class="modal-close" data-close-modal>×</button></div><form id="projectForm" class="form-grid"><label class="field"><span>Nome</span><input id="projectName" required></label><label class="field"><span>Cliente</span><input id="projectClient"></label><label class="field"><span>Localização</span><input id="projectLocation"></label><label class="field"><span>Fase</span><select id="projectPhase"><option>Concepção</option><option>Projeto básico</option><option>Projeto executivo</option><option selected>Pré-obra</option><option>Execução</option></select></label><label class="field wide"><span>Descrição</span><textarea id="projectDescription"></textarea></label><div class="wide form-actions"><button class="button button-accent" type="submit">Criar empreendimento</button></div></form></div></div>
+
+<div class="modal-backdrop hidden" id="issueModal"><div class="modal large"><div class="modal-header"><div><span class="eyebrow" id="issueModalCode">Ocorrência</span><h3 id="issueModalTitle">Detalhes</h3></div><button class="modal-close" data-close-issue>×</button></div><div id="issueModalBody"></div></div></div>
+<div class="toast hidden" id="toast"></div>
+<script src="/assets/app.js"></script><script type="module" src="/assets/ifc-viewer.js"></script>
+</body></html>

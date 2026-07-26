@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Entrar | VAELITH LABS</title><link rel="stylesheet" href="/assets/styles.css"></head>
+<body class="auth-body">
+  <div class="auth-visual"><a class="brand" href="/"><img src="/assets/vaelith-icon-white.png" alt=""><div><strong>VAELITH LABS</strong><small>Soluções em Engenharia</small></div></a><div><span class="eyebrow">Plataforma de compatibilização</span><h1>Todos os projetos, escopos e impactos em um único ambiente.</h1><p>Crie o empreendimento, envie os arquivos, execute a compatibilização e acompanhe as correções até a aprovação da versão-base.</p></div><small>Ambiente piloto · Dados armazenados no servidor local</small></div>
+  <main class="auth-card">
+    <div class="auth-tabs"><button class="active" data-auth-tab="login">Entrar</button><button data-auth-tab="register">Criar conta</button></div>
+    <form id="loginForm" class="auth-form active" data-auth-panel="login">
+      <div><span class="eyebrow">Acesso</span><h2>Entre na plataforma</h2><p>Use sua conta ou o acesso demonstrativo.</p></div>
+      <label class="field"><span>E-mail</span><input id="loginEmail" type="email" autocomplete="email" required value="demo@vaelithlabs.com.br"></label>
+      <label class="field"><span>Senha</span><input id="loginPassword" type="password" autocomplete="current-password" required value="vaelith"></label>
+      <button class="button button-accent" type="submit">Entrar</button><p class="form-message" id="loginMessage"></p>
+      <div class="demo-box"><strong>Acesso demonstrativo</strong><small>demo@vaelithlabs.com.br · senha: vaelith</small></div>
+    </form>
+    <form id="registerForm" class="auth-form" data-auth-panel="register">
+      <div><span class="eyebrow">Nova conta</span><h2>Crie seu acesso</h2><p>A conta ficará disponível neste servidor.</p></div>
+      <label class="field"><span>Nome</span><input id="registerName" required></label>
+      <label class="field"><span>E-mail</span><input id="registerEmail" type="email" required></label>
+      <label class="field"><span>Senha</span><input id="registerPassword" type="password" minlength="8" required></label>
+      <button class="button button-accent" type="submit">Criar conta</button><p class="form-message" id="registerMessage"></p>
+    </form>
+  </main>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+$$('[data-auth-tab]').forEach(b=>b.onclick=()=>{$$('[data-auth-tab]').forEach(x=>x.classList.toggle('active',x===b));$$('[data-auth-panel]').forEach(x=>x.classList.toggle('active',x.dataset.authPanel===b.dataset.authTab));});
+async function request(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});let data={};try{data=await r.json()}catch{}if(!r.ok)throw new Error(data.detail||'Não foi possível concluir');return data;}
+$('#loginForm').onsubmit=async e=>{e.preventDefault();const m=$('#loginMessage');m.textContent='Entrando...';try{await request('/api/auth/login',{email:$('#loginEmail').value,password:$('#loginPassword').value});location.href='/app';}catch(err){m.textContent=err.message;}};
+$('#registerForm').onsubmit=async e=>{e.preventDefault();const m=$('#registerMessage');m.textContent='Criando conta...';try{await request('/api/auth/register',{name:$('#registerName').value,email:$('#registerEmail').value,password:$('#registerPassword').value});m.textContent='Conta criada. Agora entre com seu e-mail e senha.';document.querySelector('[data-auth-tab="login"]').click();$('#loginEmail').value=$('#registerEmail').value;$('#loginPassword').value='';}catch(err){m.textContent=err.message;}};
+</script>
+</body></html>
