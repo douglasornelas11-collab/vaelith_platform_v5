@@ -1,30 +1,5 @@
-<!doctype html>
-<html lang="pt-BR">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Entrar | VAELITH LABS</title><link rel="stylesheet" href="/assets/styles.css"></head>
-<body class="auth-body">
-  <div class="auth-visual"><a class="brand" href="/"><img src="/assets/vaelith-icon-white.png" alt=""><div><strong>VAELITH LABS</strong><small>Soluções em Engenharia</small></div></a><div><span class="eyebrow">Plataforma de compatibilização</span><h1>Todos os projetos, escopos e impactos em um único ambiente.</h1><p>Crie o empreendimento, envie os arquivos, execute a compatibilização e acompanhe as correções até a aprovação da versão-base.</p></div><small>Ambiente piloto · Dados armazenados no servidor local</small></div>
-  <main class="auth-card">
-    <div class="auth-tabs"><button class="active" data-auth-tab="login">Entrar</button><button data-auth-tab="register">Criar conta</button></div>
-    <form id="loginForm" class="auth-form active" data-auth-panel="login">
-      <div><span class="eyebrow">Acesso</span><h2>Entre na plataforma</h2><p>Use sua conta ou o acesso demonstrativo.</p></div>
-      <label class="field"><span>E-mail</span><input id="loginEmail" type="email" autocomplete="email" required value="demo@vaelithlabs.com.br"></label>
-      <label class="field"><span>Senha</span><input id="loginPassword" type="password" autocomplete="current-password" required value="vaelith"></label>
-      <button class="button button-accent" type="submit">Entrar</button><p class="form-message" id="loginMessage"></p>
-      <div class="demo-box"><strong>Acesso demonstrativo</strong><small>demo@vaelithlabs.com.br · senha: vaelith</small></div>
-    </form>
-    <form id="registerForm" class="auth-form" data-auth-panel="register">
-      <div><span class="eyebrow">Nova conta</span><h2>Crie seu acesso</h2><p>A conta ficará disponível neste servidor.</p></div>
-      <label class="field"><span>Nome</span><input id="registerName" required></label>
-      <label class="field"><span>E-mail</span><input id="registerEmail" type="email" required></label>
-      <label class="field"><span>Senha</span><input id="registerPassword" type="password" minlength="8" required></label>
-      <button class="button button-accent" type="submit">Criar conta</button><p class="form-message" id="registerMessage"></p>
-    </form>
-  </main>
-<script>
-const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
-$$('[data-auth-tab]').forEach(b=>b.onclick=()=>{$$('[data-auth-tab]').forEach(x=>x.classList.toggle('active',x===b));$$('[data-auth-panel]').forEach(x=>x.classList.toggle('active',x.dataset.authPanel===b.dataset.authTab));});
-async function request(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});let data={};try{data=await r.json()}catch{}if(!r.ok)throw new Error(data.detail||'Não foi possível concluir');return data;}
-$('#loginForm').onsubmit=async e=>{e.preventDefault();const m=$('#loginMessage');m.textContent='Entrando...';try{await request('/api/auth/login',{email:$('#loginEmail').value,password:$('#loginPassword').value});location.href='/app';}catch(err){m.textContent=err.message;}};
-$('#registerForm').onsubmit=async e=>{e.preventDefault();const m=$('#registerMessage');m.textContent='Criando conta...';try{await request('/api/auth/register',{name:$('#registerName').value,email:$('#registerEmail').value,password:$('#registerPassword').value});m.textContent='Conta criada. Agora entre com seu e-mail e senha.';document.querySelector('[data-auth-tab="login"]').click();$('#loginEmail').value=$('#registerEmail').value;$('#loginPassword').value='';}catch(err){m.textContent=err.message;}};
-</script>
-</body></html>
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Entrar | VAELITH LABS</title><style>
+:root{--bg:#07100d;--panel:#fff;--green:#45e6a0;--ink:#0c1713;--muted:#728078}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;grid-template-columns:1fr 520px;background:radial-gradient(circle at 20% 20%,#174535,transparent 38%),var(--bg);font:16px Inter,Arial;color:white}.visual{padding:48px 7vw;display:flex;flex-direction:column;justify-content:space-between}.brand{font-weight:850;letter-spacing:.15em}.brand small{display:block;color:#9badA6;font-size:10px;margin-top:5px}.visual h1{font-size:clamp(42px,5vw,72px);line-height:1.02;letter-spacing:-.05em;max-width:720px;margin:14px 0}.visual p{color:#acbbb5;max-width:620px;font-size:18px}.card{background:var(--panel);color:var(--ink);margin:18px;border-radius:20px;padding:55px;display:flex;flex-direction:column;justify-content:center}.eyebrow{color:#0a9f68;text-transform:uppercase;font-size:12px;font-weight:800;letter-spacing:.14em}.card h2{font-size:38px;margin:10px 0}.card>p{color:var(--muted);margin:0 0 30px}.field{display:block;margin:16px 0}.field span{display:block;font-size:13px;font-weight:700;margin-bottom:8px}.field input{width:100%;padding:15px;border:1px solid #d6dfdb;border-radius:10px;font-size:16px}.btn{width:100%;border:0;border-radius:10px;padding:15px;background:#0d2119;color:white;font-size:16px;font-weight:800;cursor:pointer}.btn:hover{background:#153d2e}.message{min-height:24px;color:#b12626}.demo{border-top:1px solid #e3e9e6;margin-top:25px;padding-top:20px;color:var(--muted);font-size:13px}.back{color:#9badA6;text-decoration:none}@media(max-width:850px){body{display:block}.visual{min-height:300px;padding:35px 25px}.visual h1{font-size:42px}.card{margin:0;border-radius:20px 20px 0 0;padding:38px 25px;min-height:520px}}
+</style></head><body><section class="visual"><a class="brand back" href="https://www.vaelithlabs.com.br">VAELITH LABS<small>SOLUÇÕES EM ENGENHARIA</small></a><div><span class="eyebrow">Plataforma de compatibilização</span><h1>Todos os projetos e decisões em um único ambiente.</h1><p>Entre e siga diretamente para a estrutura de compatibilização do seu empreendimento.</p></div><small>Ambiente beta protegido por sessão segura.</small></section><main class="card"><span class="eyebrow">Acesso</span><h2>Bem-vindo.</h2><p>Use sua conta ou o acesso demonstrativo.</p><form id="form"><label class="field"><span>E-mail</span><input id="email" type="email" value="demo@vaelithlabs.com.br" required></label><label class="field"><span>Senha</span><input id="password" type="password" value="vaelith" required></label><button class="btn">Entrar na plataforma</button><p id="message" class="message"></p></form><div class="demo"><b>Acesso demonstrativo</b><br>demo@vaelithlabs.com.br · senha: vaelith</div></main><script>
+form.onsubmit=async e=>{e.preventDefault();message.textContent='Validando acesso...';const r=await fetch('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:email.value,password:password.value})});if(r.ok)location.href='/app';else{let d={};try{d=await r.json()}catch{}message.textContent=d.detail||'Não foi possível entrar.'}}
+</script></body></html>

@@ -1,4 +1,0 @@
-# Instalação opcional do motor geométrico exato.
-# Recomendação: Python 3.11 ou 3.12 em ambiente Linux/Windows compatível.
-ifcopenshell>=0.8.3
-ifcclash>=0.8.3
