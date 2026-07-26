@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 import mimetypes
 import os
@@ -20,7 +22,7 @@ UPLOADS = DATA / "uploads"
 DATA.mkdir(parents=True, exist_ok=True)
 UPLOADS.mkdir(parents=True, exist_ok=True)
 DB = DATA / "vaelith.db"
-APP_VERSION = "7.0-coordination-engine"
+APP_VERSION = "7.1-upload-and-budget"
 COOKIE_SECURE = bool(os.getenv("VERCEL")) or os.getenv("COOKIE_SECURE") == "1"
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "4" if os.getenv("VERCEL") else "100"))
 app = FastAPI(title="VAELITH LABS", version=APP_VERSION)
@@ -58,6 +60,7 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,user_id TEXT,name TEXT,client TEXT,location TEXT,phase TEXT,created TEXT);
             CREATE TABLE IF NOT EXISTS files(id TEXT PRIMARY KEY,project_id TEXT,name TEXT,ext TEXT,size INTEGER,discipline TEXT,revision TEXT,uploaded TEXT);
             CREATE TABLE IF NOT EXISTS analyses(id TEXT PRIMARY KEY,project_id TEXT,result TEXT,created TEXT);
+            CREATE TABLE IF NOT EXISTS budget_items(id TEXT PRIMARY KEY,project_id TEXT,file_id TEXT,description TEXT,unit TEXT,quantity REAL,unit_price REAL,total REAL,category TEXT,created TEXT);
         """)
         for definition in ["discipline_code TEXT DEFAULT 'UNK'", "checksum TEXT DEFAULT ''", "storage_path TEXT DEFAULT ''", "mime TEXT DEFAULT 'application/octet-stream'"]:
             ensure_column(c, "files", definition)
@@ -129,6 +132,84 @@ def safe_json(body: bytes) -> dict:
     return parsed
 
 
+def _number(value):
+    if value is None or value == "":
+        return 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip().replace("R$", "").replace(" ", "")
+    if "," in text and "." in text:
+        text = text.replace(".", "").replace(",", ".")
+    elif "," in text:
+        text = text.replace(",", ".")
+    try:
+        return float(text)
+    except ValueError:
+        return 0.0
+
+
+def _budget_category(description: str) -> str:
+    text = description.upper()
+    rules = [
+        ("ARQ", ["ALVENARIA", "REVESTIMENTO", "PISO", "FORRO", "PINTURA", "ESQUADRIA", "ARQUIT"]),
+        ("EST", ["CONCRETO", "ARMAÇÃO", "ACO", "FUNDAÇÃO", "ESTRUT"]),
+        ("HID", ["HIDR", "TUBO", "ÁGUA", "AGUA", "BOMBA"]),
+        ("SAN", ["ESGOTO", "SANIT", "DRENO"]),
+        ("ELE", ["ELÉTR", "ELETR", "CABO", "QUADRO", "LUMIN"]),
+        ("HVAC", ["AR COND", "CLIMAT", "DUTO", "HVAC", "CHILLER"]),
+        ("PCI", ["INCÊND", "INCEND", "SPRINKLER", "HIDRANTE"]),
+    ]
+    for code, words in rules:
+        if any(word in text for word in words):
+            return code
+    return "OUT"
+
+
+def parse_budget(raw: bytes, ext: str) -> list[dict]:
+    if ext == ".csv":
+        text = raw.decode("utf-8-sig", errors="replace")
+        try:
+            dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;") if text.strip() else csv.excel
+        except csv.Error:
+            dialect = csv.excel
+        data = list(csv.reader(io.StringIO(text), dialect))
+    elif ext == ".xlsx":
+        try:
+            from openpyxl import load_workbook
+        except ImportError:
+            return []
+        workbook = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+        data = [list(row) for row in workbook.active.iter_rows(values_only=True)]
+    else:
+        return []
+    if not data:
+        return []
+    header = [str(value or "").strip().lower() for value in data[0]]
+    def column(names, default=None):
+        for name in names:
+            for index, value in enumerate(header):
+                if name in value:
+                    return index
+        return default
+    description_index = column(["descr", "serviço", "servico", "item"], 0)
+    unit_index = column(["unid"], 1)
+    quantity_index = column(["quant"], 2)
+    unit_price_index = column(["preço unit", "preco unit", "valor unit"], 3)
+    total_index = column(["total", "valor total"], 4)
+    rows = []
+    for row in data[1:]:
+        if not row or description_index is None or description_index >= len(row):
+            continue
+        description = str(row[description_index] or "").strip()
+        if not description:
+            continue
+        quantity = _number(row[quantity_index] if quantity_index is not None and quantity_index < len(row) else 0)
+        unit_price = _number(row[unit_price_index] if unit_price_index is not None and unit_price_index < len(row) else 0)
+        total = _number(row[total_index] if total_index is not None and total_index < len(row) else quantity * unit_price) or quantity * unit_price
+        rows.append({"description": description, "unit": str(row[unit_index] or "") if unit_index is not None and unit_index < len(row) else "", "quantity": quantity, "unit_price": unit_price, "total": total, "category": _budget_category(description)})
+    return rows[:10000]
+
+
 def files_for(project_id: str) -> list[dict]:
     with conn() as c:
         rows = c.execute("SELECT * FROM files WHERE project_id=? ORDER BY uploaded DESC", (project_id,)).fetchall()
@@ -156,7 +237,7 @@ def app_page(vaelith_session: str | None = Cookie(None)):
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "version": APP_VERSION, "environment": "vercel" if os.getenv("VERCEL") else "local", "maxUploadMb": MAX_UPLOAD_MB, "storage": "temporary" if os.getenv("VERCEL") else "local", "engine": "document-and-interface-coordination-v1"}
+    return {"ok": True, "version": APP_VERSION, "environment": "vercel" if os.getenv("VERCEL") else "local", "maxUploadMb": MAX_UPLOAD_MB, "storage": "temporary" if os.getenv("VERCEL") else "local", "engine": "document-interface-and-budget-coordination-v1"}
 
 
 @app.get("/api/catalog/disciplines")
@@ -241,8 +322,10 @@ async def upload(pid: str, uploads: list[UploadFile] = File(...), vaelith_sessio
         raw = await upload_file.read(MAX_UPLOAD_MB * 1024 * 1024 + 1)
         filename = Path(upload_file.filename or "arquivo").name
         if len(raw) > MAX_UPLOAD_MB * 1024 * 1024:
-            raise HTTPException(413, f"{filename}: limite de {MAX_UPLOAD_MB} MB por arquivo.")
+            raise HTTPException(413, f"{filename}: limite atual de {MAX_UPLOAD_MB} MB por arquivo.")
         ext = Path(filename).suffix.lower()
+        if ext not in {".pdf", ".dwg", ".dxf", ".ifc", ".rvt", ".xlsx", ".csv", ".mpp", ".doc", ".docx", ".png", ".jpg", ".jpeg"}:
+            raise HTTPException(415, f"{filename}: formato ainda não aceito.")
         code, discipline = infer_discipline(filename)
         revision = infer_revision(filename)
         fid = uuid4().hex
@@ -252,6 +335,9 @@ async def upload(pid: str, uploads: list[UploadFile] = File(...), vaelith_sessio
         mime = upload_file.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
         with conn() as c:
             c.execute("INSERT INTO files(id,project_id,name,ext,size,discipline,revision,uploaded,discipline_code,checksum,storage_path,mime) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", (fid, pid, filename, ext, len(raw), discipline, revision, now(), code, checksum, str(stored), mime))
+            if ext in {".xlsx", ".csv"}:
+                for item in parse_budget(raw, ext):
+                    c.execute("INSERT INTO budget_items VALUES(?,?,?,?,?,?,?,?,?,?)", (uuid4().hex, pid, fid, item["description"], item["unit"], item["quantity"], item["unit_price"], item["total"], item["category"], now()))
         saved.append({"id": fid, "name": filename, "discipline": discipline, "discipline_code": code, "revision": revision, "checksum": checksum})
     return {"saved": saved}
 
@@ -282,6 +368,7 @@ def delete_file(pid: str, fid: str, vaelith_session: str | None = Cookie(None)):
         if not row:
             raise HTTPException(404, "Arquivo não encontrado.")
         c.execute("DELETE FROM files WHERE id=?", (fid,))
+        c.execute("DELETE FROM budget_items WHERE file_id=?", (fid,))
     if row["storage_path"]:
         Path(row["storage_path"]).unlink(missing_ok=True)
     return Response(status_code=204)
@@ -296,6 +383,23 @@ def download_file(pid: str, fid: str, vaelith_session: str | None = Cookie(None)
     if not row or not row["storage_path"] or not Path(row["storage_path"]).exists():
         raise HTTPException(404, "Arquivo físico não está disponível nesta instância.")
     return FileResponse(row["storage_path"], media_type=row["mime"], filename=row["name"])
+
+
+@app.get("/api/projects/{pid}/budget/equalization")
+def budget_equalization(pid: str, vaelith_session: str | None = Cookie(None)):
+    user = require_user(vaelith_session)
+    require_project(pid, user["id"])
+    with conn() as c:
+        rows = [dict(row) for row in c.execute("SELECT * FROM budget_items WHERE project_id=? ORDER BY description", (pid,)).fetchall()]
+    totals = {}
+    for item in rows:
+        totals[item["category"]] = totals.get(item["category"], 0) + float(item["total"] or 0)
+    present = {item.get("discipline_code") for item in files_for(pid)}
+    mapping = {"ARQ": "Arquitetura", "EST": "Estrutura", "HID": "Hidráulica", "SAN": "Sanitária", "ELE": "Elétrica", "HVAC": "Climatização", "PCI": "Incêndio", "OUT": "Outros"}
+    categories = []
+    for code, total in sorted(totals.items(), key=lambda item: -item[1]):
+        categories.append({"code": code, "name": mapping.get(code, code), "total": round(total, 2), "projectReceived": code in present, "status": "Coberto" if code in present else "Sem projeto relacionado"})
+    return {"items": len(rows), "total": round(sum(float(item["total"] or 0) for item in rows), 2), "categories": categories, "unmatched": sum(1 for item in rows if item["category"] == "OUT")}
 
 
 @app.post("/api/projects/{pid}/compatibility")
