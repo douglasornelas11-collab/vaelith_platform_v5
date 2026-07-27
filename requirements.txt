@@ -3,3 +3,4 @@ uvicorn==0.48.0
 python-multipart==0.0.20
 openpyxl==3.1.5
 psycopg[binary]==3.2.10
+supabase==2.31.0
