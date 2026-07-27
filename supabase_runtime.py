@@ -5,8 +5,10 @@ import json
 import mimetypes
 import os
 from pathlib import Path
+from urllib.parse import quote
 from uuid import uuid4
 
+import httpx
 from fastapi import Cookie, FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
@@ -41,32 +43,61 @@ def configured() -> bool:
     return _credential_status()[0]
 
 
-def client():
-    valid, detail = _credential_status()
-    if not valid:
-        raise HTTPException(503, detail)
-    from supabase import create_client
-    return create_client(os.environ["SUPABASE_URL"].rstrip("/"), os.environ["SUPABASE_SERVICE_ROLE_KEY"])
-
-
 def _server():
     import server
     return server
 
 
+def _storage_headers() -> dict[str, str]:
+    valid, key_kind = _credential_status()
+    if not valid:
+        raise HTTPException(503, key_kind)
+    key = os.environ["SUPABASE_SERVICE_ROLE_KEY"].strip()
+    headers = {"apikey": key, "Content-Type": "application/json"}
+    if key_kind == "legacy-service-role":
+        headers["Authorization"] = f"Bearer {key}"
+    return headers
+
+
+def _storage_request(method: str, endpoint: str, payload: dict | None = None) -> dict | list:
+    url = os.environ["SUPABASE_URL"].rstrip("/") + "/storage/v1" + endpoint
+    try:
+        with httpx.Client(timeout=30.0, trust_env=False, follow_redirects=False) as client:
+            response = client.request(method, url, headers=_storage_headers(), json=payload)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, f"Falha de comunicação com o Supabase Storage: {type(exc).__name__}: {str(exc)[:180]}")
+    if response.status_code >= 400:
+        detail = response.text[:300]
+        if "row-level security" in detail.lower():
+            raise HTTPException(503, "O Supabase recusou a operação por política RLS. Confirme que SUPABASE_SERVICE_ROLE_KEY contém uma Secret key administrativa válida.")
+        raise HTTPException(502, f"Supabase Storage respondeu HTTP {response.status_code}: {detail}")
+    if not response.content:
+        return {}
+    try:
+        return response.json()
+    except ValueError:
+        return {}
+
+
 def _signed_value(data, *keys):
-    if hasattr(data, "model_dump"):
-        data = data.model_dump()
-    if not isinstance(data, dict):
-        data = getattr(data, "data", data)
-    if hasattr(data, "model_dump"):
-        data = data.model_dump()
     if not isinstance(data, dict):
         return None
     for key in keys:
         if data.get(key):
             return data[key]
     return None
+
+
+def _absolute_storage_url(value: str) -> str:
+    if value.startswith("http://") or value.startswith("https://"):
+        return value
+    if not value.startswith("/"):
+        value = "/" + value
+    if value.startswith("/storage/v1/"):
+        return os.environ["SUPABASE_URL"].rstrip("/") + value
+    return os.environ["SUPABASE_URL"].rstrip("/") + "/storage/v1" + value
 
 
 def install(app: FastAPI) -> None:
@@ -87,7 +118,7 @@ def install(app: FastAPI) -> None:
         valid, _ = _credential_status()
         return {
             "ok": True,
-            "version": "7.3-storage-role-validation",
+            "version": "7.4-storage-rest-secret-key",
             "environment": "vercel" if os.getenv("VERCEL") else "local",
             "maxUploadMb": MAX_FILE_MB if valid else 4,
             "storage": "supabase-private" if valid else "temporary",
@@ -114,23 +145,14 @@ def install(app: FastAPI) -> None:
             raise HTTPException(413, f"{filename}: limite de {MAX_FILE_MB} MB por arquivo.")
         fid = uuid4().hex
         object_path = f"projects/{user['id']}/{pid}/{fid}{ext}"
-        try:
-            result = client().storage.from_(BUCKET).create_signed_upload_url(object_path)
-        except HTTPException:
-            raise
-        except Exception as exc:
-            text = str(exc)
-            if "row-level security" in text.lower() or "Unauthorized" in text:
-                raise HTTPException(503, "A chave configurada não possui permissão administrativa no Storage. Use a service_role ou uma Secret key do Supabase no backend.")
-            raise HTTPException(502, f"Não foi possível autorizar o upload no Supabase: {exc}")
-        signed_url = _signed_value(result, "signed_url", "signedUrl", "url")
+        encoded = quote(object_path, safe="/")
+        result = _storage_request("POST", f"/object/upload/sign/{quote(BUCKET, safe='')}/{encoded}", {"upsert": False})
+        signed_url = _signed_value(result, "signedURL", "signedUrl", "signed_url", "url")
         token = _signed_value(result, "token")
         path = _signed_value(result, "path") or object_path
         if not signed_url:
             raise HTTPException(502, "O Supabase não retornou uma URL assinada de upload.")
-        if signed_url.startswith("/"):
-            signed_url = os.environ["SUPABASE_URL"].rstrip("/") + "/storage/v1" + signed_url
-        return {"fileId": fid, "path": path, "signedUrl": signed_url, "token": token, "bucket": BUCKET, "mime": mime, "maxFileMb": MAX_FILE_MB}
+        return {"fileId": fid, "path": path, "signedUrl": _absolute_storage_url(signed_url), "token": token, "bucket": BUCKET, "mime": mime, "maxFileMb": MAX_FILE_MB}
 
     @app.post("/api/projects/{pid}/uploads/confirm")
     async def confirm_upload(pid: str, request: Request, vaelith_session: str | None = Cookie(None)):
@@ -147,14 +169,9 @@ def install(app: FastAPI) -> None:
         expected_prefix = f"projects/{user['id']}/{pid}/"
         if not fid or not object_path.startswith(expected_prefix) or Path(object_path).stem != fid:
             raise HTTPException(400, "Confirmação de arquivo inválida.")
-        try:
-            folder, object_name = object_path.rsplit("/", 1)
-            objects = client().storage.from_(BUCKET).list(folder, {"search": object_name, "limit": 10})
-            found = any((item.get("name") if isinstance(item, dict) else getattr(item, "name", None)) == object_name for item in (objects or []))
-        except HTTPException:
-            raise
-        except Exception as exc:
-            raise HTTPException(502, f"Não foi possível confirmar o arquivo no Supabase: {exc}")
+        folder, object_name = object_path.rsplit("/", 1)
+        objects = _storage_request("POST", f"/object/list/{quote(BUCKET, safe='')}", {"prefix": folder, "search": object_name, "limit": 10, "offset": 0})
+        found = any(isinstance(item, dict) and item.get("name") == object_name for item in (objects if isinstance(objects, list) else []))
         if not found:
             raise HTTPException(409, "O upload terminou no navegador, mas o arquivo não foi encontrado no armazenamento.")
         code, discipline = srv.infer_discipline(filename)
@@ -179,15 +196,9 @@ def install(app: FastAPI) -> None:
         if not storage_path.startswith(prefix):
             raise HTTPException(404, "Arquivo físico antigo não está disponível no armazenamento permanente.")
         object_path = storage_path[len(prefix):]
-        try:
-            data = client().storage.from_(BUCKET).create_signed_url(object_path, 300, {"download": row["name"]})
-        except HTTPException:
-            raise
-        except Exception as exc:
-            raise HTTPException(502, f"Não foi possível autorizar o download: {exc}")
-        signed_url = _signed_value(data, "signed_url", "signedUrl", "url")
+        encoded = quote(object_path, safe="/")
+        data = _storage_request("POST", f"/object/sign/{quote(BUCKET, safe='')}/{encoded}", {"expiresIn": 300, "download": row["name"]})
+        signed_url = _signed_value(data, "signedURL", "signedUrl", "signed_url", "url")
         if not signed_url:
             raise HTTPException(502, "O Supabase não retornou uma URL de download.")
-        if signed_url.startswith("/"):
-            signed_url = os.environ["SUPABASE_URL"].rstrip("/") + "/storage/v1" + signed_url
-        return RedirectResponse(signed_url, status_code=307)
+        return RedirectResponse(_absolute_storage_url(signed_url), status_code=307)
