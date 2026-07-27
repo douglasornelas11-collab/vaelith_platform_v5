@@ -1,25 +1,50 @@
 from __future__ import annotations
 
+import base64
+import json
 import mimetypes
 import os
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import Cookie, FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 
 BUCKET = os.getenv("SUPABASE_BUCKET", "vaelith-project-files")
 MAX_FILE_MB = int(os.getenv("MAX_FILE_MB", "250"))
 ALLOWED = {".pdf", ".dwg", ".dxf", ".ifc", ".rvt", ".xlsx", ".csv", ".mpp", ".doc", ".docx", ".png", ".jpg", ".jpeg"}
 
 
+def _credential_status() -> tuple[bool, str]:
+    url = os.getenv("SUPABASE_URL", "").strip()
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    if not url or not key:
+        return False, "Supabase Storage ainda não está conectado às variáveis de produção."
+    if key.startswith("sb_secret_"):
+        return True, "secret"
+    if key.startswith("sb_publishable_"):
+        return False, "A variável SUPABASE_SERVICE_ROLE_KEY contém uma chave pública. Use uma Secret key do backend."
+    if key.startswith("eyJ") and key.count(".") == 2:
+        try:
+            payload = key.split(".")[1]
+            payload += "=" * (-len(payload) % 4)
+            role = json.loads(base64.urlsafe_b64decode(payload.encode()).decode()).get("role")
+        except Exception:
+            role = None
+        if role == "service_role":
+            return True, "legacy-service-role"
+        return False, f"A chave configurada possui role '{role or 'desconhecida'}'. Use a service_role, não a anon key."
+    return False, "A chave administrativa do Supabase não tem formato reconhecido."
+
+
 def configured() -> bool:
-    return bool(os.getenv("SUPABASE_URL", "").strip() and os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip())
+    return _credential_status()[0]
 
 
 def client():
-    if not configured():
-        raise HTTPException(503, "Supabase Storage ainda não está conectado às variáveis de produção.")
+    valid, detail = _credential_status()
+    if not valid:
+        raise HTTPException(503, detail)
     from supabase import create_client
     return create_client(os.environ["SUPABASE_URL"].rstrip("/"), os.environ["SUPABASE_SERVICE_ROLE_KEY"])
 
@@ -47,22 +72,25 @@ def _signed_value(data, *keys):
 def install(app: FastAPI) -> None:
     @app.get("/api/storage/status")
     def storage_status():
+        valid, detail = _credential_status()
         return {
-            "configured": configured(),
-            "provider": "supabase" if configured() else "temporary",
-            "bucket": BUCKET if configured() else None,
-            "maxFileMb": MAX_FILE_MB if configured() else 4,
-            "directUpload": configured(),
+            "configured": valid,
+            "provider": "supabase" if valid else "temporary",
+            "bucket": BUCKET if valid else None,
+            "maxFileMb": MAX_FILE_MB if valid else 4,
+            "directUpload": valid,
+            "detail": None if valid else detail,
         }
 
     @app.get("/api/health")
     def persistent_health():
+        valid, _ = _credential_status()
         return {
             "ok": True,
-            "version": "7.2-persistent-storage",
+            "version": "7.3-storage-role-validation",
             "environment": "vercel" if os.getenv("VERCEL") else "local",
-            "maxUploadMb": MAX_FILE_MB if configured() else 4,
-            "storage": "supabase-private" if configured() else "temporary",
+            "maxUploadMb": MAX_FILE_MB if valid else 4,
+            "storage": "supabase-private" if valid else "temporary",
             "database": "postgresql" if any(os.getenv(n, "").startswith(("postgres://", "postgresql://")) for n in ("VAELITH_DB_URL", "STORAGE_URL", "DATABASE_URL", "POSTGRES_URL", "NEON_DATABASE_URL")) else "sqlite-temporary",
             "engine": "document-interface-and-budget-coordination-v1",
             "geometricEngine": "not-yet-implemented",
@@ -88,7 +116,12 @@ def install(app: FastAPI) -> None:
         object_path = f"projects/{user['id']}/{pid}/{fid}{ext}"
         try:
             result = client().storage.from_(BUCKET).create_signed_upload_url(object_path)
+        except HTTPException:
+            raise
         except Exception as exc:
+            text = str(exc)
+            if "row-level security" in text.lower() or "Unauthorized" in text:
+                raise HTTPException(503, "A chave configurada não possui permissão administrativa no Storage. Use a service_role ou uma Secret key do Supabase no backend.")
             raise HTTPException(502, f"Não foi possível autorizar o upload no Supabase: {exc}")
         signed_url = _signed_value(result, "signed_url", "signedUrl", "url")
         token = _signed_value(result, "token")
@@ -118,6 +151,8 @@ def install(app: FastAPI) -> None:
             folder, object_name = object_path.rsplit("/", 1)
             objects = client().storage.from_(BUCKET).list(folder, {"search": object_name, "limit": 10})
             found = any((item.get("name") if isinstance(item, dict) else getattr(item, "name", None)) == object_name for item in (objects or []))
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(502, f"Não foi possível confirmar o arquivo no Supabase: {exc}")
         if not found:
@@ -146,6 +181,8 @@ def install(app: FastAPI) -> None:
         object_path = storage_path[len(prefix):]
         try:
             data = client().storage.from_(BUCKET).create_signed_url(object_path, 300, {"download": row["name"]})
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(502, f"Não foi possível autorizar o download: {exc}")
         signed_url = _signed_value(data, "signed_url", "signedUrl", "url")
