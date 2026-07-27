@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import json
 import os
 from datetime import datetime, timezone
 from urllib.parse import urlparse
@@ -22,8 +24,21 @@ def _key_type(key: str) -> str:
     if key.startswith("sb_publishable_"):
         return "publishable"
     if key.startswith("eyJ") and key.count(".") == 2:
-        return "legacy-service-role-jwt"
+        return "legacy-jwt"
     return "unknown"
+
+
+def _jwt_role(key: str) -> str | None:
+    if not (key.startswith("eyJ") and key.count(".") == 2):
+        return None
+    try:
+        payload = key.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        data = json.loads(base64.urlsafe_b64decode(payload.encode()).decode())
+        role = data.get("role")
+        return str(role) if role else None
+    except Exception:
+        return None
 
 
 def install(app: FastAPI) -> None:
@@ -35,6 +50,7 @@ def install(app: FastAPI) -> None:
         parsed = urlparse(url) if url else None
         host = (parsed.hostname or "").lower() if parsed else ""
         key_type = _key_type(key)
+        jwt_role = _jwt_role(key)
         result = {
             "ok": False,
             "testedAt": datetime.now(timezone.utc).isoformat(),
@@ -46,6 +62,7 @@ def install(app: FastAPI) -> None:
             "urlHost": host or None,
             "bucket": bucket if url and key else None,
             "keyType": key_type,
+            "jwtRole": jwt_role,
             "connection": "not-tested",
             "detail": None,
         }
@@ -65,6 +82,10 @@ def install(app: FastAPI) -> None:
             result["connection"] = "invalid-key-type"
             result["detail"] = "Foi configurada uma chave pública. Use uma Secret key (sb_secret_...) ou a service_role legada no backend."
             return result
+        if key_type == "legacy-jwt" and jwt_role != "service_role":
+            result["connection"] = "invalid-jwt-role"
+            result["detail"] = f"A chave JWT configurada possui role '{jwt_role or 'desconhecida'}'. Use a chave service_role, não a anon key."
+            return result
         if key_type == "unknown":
             result["connection"] = "invalid-key-format"
             result["detail"] = "A chave não tem formato reconhecido. Use uma Secret key (sb_secret_...) ou a service_role legada em formato JWT."
@@ -76,9 +97,7 @@ def install(app: FastAPI) -> None:
             "apikey": key,
             "Content-Type": "application/json",
         }
-        # New sb_secret keys are opaque API keys and must not be parsed as JWTs.
-        # Legacy service_role keys are JWTs and remain valid as Bearer credentials.
-        if key_type == "legacy-service-role-jwt":
+        if key_type == "legacy-jwt":
             headers["Authorization"] = f"Bearer {key}"
 
         try:
@@ -92,7 +111,7 @@ def install(app: FastAPI) -> None:
             body = response.json()
             result["ok"] = True
             result["connection"] = "connected"
-            result["detail"] = "Conexão autenticada e bucket acessível."
+            result["detail"] = "Conexão administrativa autenticada e bucket acessível."
             result["sampleCount"] = len(body) if isinstance(body, list) else 0
         except Exception as exc:
             result["connection"] = "failed"
