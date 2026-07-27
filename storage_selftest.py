@@ -16,6 +16,16 @@ PLACEHOLDER_HOSTS = {
 }
 
 
+def _key_type(key: str) -> str:
+    if key.startswith("sb_secret_"):
+        return "secret"
+    if key.startswith("sb_publishable_"):
+        return "publishable"
+    if key.startswith("eyJ") and key.count(".") == 2:
+        return "legacy-service-role-jwt"
+    return "unknown"
+
+
 def install(app: FastAPI) -> None:
     @app.get("/api/storage/self-test")
     def storage_self_test():
@@ -24,6 +34,7 @@ def install(app: FastAPI) -> None:
         bucket = os.getenv("SUPABASE_BUCKET", "vaelith-project-files").strip()
         parsed = urlparse(url) if url else None
         host = (parsed.hostname or "").lower() if parsed else ""
+        key_type = _key_type(key)
         result = {
             "ok": False,
             "testedAt": datetime.now(timezone.utc).isoformat(),
@@ -34,6 +45,7 @@ def install(app: FastAPI) -> None:
             },
             "urlHost": host or None,
             "bucket": bucket if url and key else None,
+            "keyType": key_type,
             "connection": "not-tested",
             "detail": None,
         }
@@ -47,22 +59,35 @@ def install(app: FastAPI) -> None:
             return result
         if host in PLACEHOLDER_HOSTS or any(token in host for token in ("seu-id", "seu-projeto", "xxxxxxxx", "project-ref")):
             result["connection"] = "placeholder-url"
-            result["detail"] = "SUPABASE_URL ainda contém um endereço de exemplo. Copie a Project URL real em Supabase > Project Settings > API."
+            result["detail"] = "SUPABASE_URL ainda contém um endereço de exemplo. Copie a Project URL real no painel do Supabase."
+            return result
+        if key_type == "publishable":
+            result["connection"] = "invalid-key-type"
+            result["detail"] = "Foi configurada uma chave pública. Use uma Secret key (sb_secret_...) ou a service_role legada no backend."
+            return result
+        if key_type == "unknown":
+            result["connection"] = "invalid-key-format"
+            result["detail"] = "A chave não tem formato reconhecido. Use uma Secret key (sb_secret_...) ou a service_role legada em formato JWT."
             return result
 
         endpoint = f"{url}/storage/v1/object/list/{bucket}"
         payload = {"prefix": "", "limit": 1, "offset": 0}
         headers = {
-            "Authorization": f"Bearer {key}",
             "apikey": key,
             "Content-Type": "application/json",
         }
+        # New sb_secret keys are opaque API keys and must not be parsed as JWTs.
+        # Legacy service_role keys are JWTs and remain valid as Bearer credentials.
+        if key_type == "legacy-service-role-jwt":
+            headers["Authorization"] = f"Bearer {key}"
+
         try:
             with httpx.Client(timeout=20.0, trust_env=False, follow_redirects=False) as client:
                 response = client.post(endpoint, json=payload, headers=headers)
             if response.status_code >= 400:
-                result["connection"] = "failed"
-                result["detail"] = f"HTTP {response.status_code}: {response.text[:240]}"
+                text = response.text[:240]
+                result["connection"] = "unauthorized" if response.status_code in {401, 403} or "Unauthorized" in text else "failed"
+                result["detail"] = f"HTTP {response.status_code}: {text}"
                 return result
             body = response.json()
             result["ok"] = True
