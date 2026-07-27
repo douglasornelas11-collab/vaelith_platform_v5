@@ -1,10 +1,4 @@
-"""Runtime database bridge for Vaelith.
-
-Python imports sitecustomize automatically during startup. When a PostgreSQL
-connection URL is available, this module replaces sqlite3.connect with a small
-compatibility layer so the existing application persists its records in Neon
-without a risky all-at-once rewrite of every query.
-"""
+"""Runtime database and storage bridge for Vaelith."""
 from __future__ import annotations
 
 import os
@@ -65,7 +59,6 @@ class CursorBridge:
 class ConnectionBridge:
     def __init__(self, url: str):
         import psycopg
-
         self._connection = psycopg.connect(url, autocommit=False)
         self.row_factory = None
 
@@ -128,3 +121,45 @@ def connect(database: str, *args, **kwargs):
 
 if _URL:
     _sqlite3.connect = connect
+
+
+# FastAPI is patched before server.py creates the application. This keeps the
+# storage integration isolated while preserving the current application code.
+try:
+    from fastapi import FastAPI
+
+    _original_init = FastAPI.__init__
+    _original_middleware = FastAPI.middleware
+
+    def _vaelith_init(self, *args, **kwargs):
+        _original_init(self, *args, **kwargs)
+        try:
+            from supabase_runtime import install
+            install(self)
+        except Exception as exc:
+            print(f"VAELITH_STORAGE_INSTALL_ERROR: {exc}")
+
+    def _vaelith_middleware(self, middleware_type: str):
+        decorator = _original_middleware(self, middleware_type)
+
+        def register(func):
+            if getattr(func, "__name__", "") != "security_headers":
+                return decorator(func)
+
+            async def storage_aware_security_headers(request, call_next):
+                response = await func(request, call_next)
+                csp = response.headers.get("Content-Security-Policy", "")
+                if "connect-src 'self'" in csp:
+                    csp = csp.replace("connect-src 'self'", "connect-src 'self' https://*.supabase.co")
+                response.headers["Content-Security-Policy"] = csp
+                return response
+
+            storage_aware_security_headers.__name__ = func.__name__
+            return decorator(storage_aware_security_headers)
+
+        return register
+
+    FastAPI.__init__ = _vaelith_init
+    FastAPI.middleware = _vaelith_middleware
+except Exception as exc:
+    print(f"VAELITH_FASTAPI_PATCH_ERROR: {exc}")
