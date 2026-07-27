@@ -8,6 +8,14 @@ import httpx
 from fastapi import FastAPI
 
 
+PLACEHOLDER_HOSTS = {
+    "seu-id-do-projeto.supabase.co",
+    "seu-projeto.supabase.co",
+    "project-ref.supabase.co",
+    "xxxxxxxxxxxx.supabase.co",
+}
+
+
 def install(app: FastAPI) -> None:
     @app.get("/api/storage/self-test")
     def storage_self_test():
@@ -15,6 +23,7 @@ def install(app: FastAPI) -> None:
         key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
         bucket = os.getenv("SUPABASE_BUCKET", "vaelith-project-files").strip()
         parsed = urlparse(url) if url else None
+        host = (parsed.hostname or "").lower() if parsed else ""
         result = {
             "ok": False,
             "testedAt": datetime.now(timezone.utc).isoformat(),
@@ -23,7 +32,7 @@ def install(app: FastAPI) -> None:
                 "SUPABASE_SERVICE_ROLE_KEY": bool(key),
                 "SUPABASE_BUCKET": bool(bucket),
             },
-            "urlHost": parsed.hostname if parsed else None,
+            "urlHost": host or None,
             "bucket": bucket if url and key else None,
             "connection": "not-tested",
             "detail": None,
@@ -32,9 +41,13 @@ def install(app: FastAPI) -> None:
             result["connection"] = "blocked"
             result["detail"] = "As credenciais do Supabase não estão disponíveis no ambiente de produção."
             return result
-        if parsed.scheme != "https" or not parsed.hostname or not parsed.hostname.endswith(".supabase.co"):
+        if parsed.scheme != "https" or not host or not host.endswith(".supabase.co"):
             result["connection"] = "invalid-url"
-            result["detail"] = "SUPABASE_URL inválida. Use a Project URL no formato https://ID.supabase.co."
+            result["detail"] = "SUPABASE_URL inválida. Use a Project URL real no formato https://ID-REAL.supabase.co."
+            return result
+        if host in PLACEHOLDER_HOSTS or any(token in host for token in ("seu-id", "seu-projeto", "xxxxxxxx", "project-ref")):
+            result["connection"] = "placeholder-url"
+            result["detail"] = "SUPABASE_URL ainda contém um endereço de exemplo. Copie a Project URL real em Supabase > Project Settings > API."
             return result
 
         endpoint = f"{url}/storage/v1/object/list/{bucket}"
@@ -45,7 +58,6 @@ def install(app: FastAPI) -> None:
             "Content-Type": "application/json",
         }
         try:
-            # trust_env=False ignores malformed proxy variables inherited by the runtime.
             with httpx.Client(timeout=20.0, trust_env=False, follow_redirects=False) as client:
                 response = client.post(endpoint, json=payload, headers=headers)
             if response.status_code >= 400:
