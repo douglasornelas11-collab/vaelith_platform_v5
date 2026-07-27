@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 import os
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 
 from fastapi import FastAPI
@@ -9,7 +12,7 @@ from fastapi import FastAPI
 def install(app: FastAPI) -> None:
     @app.get("/api/storage/self-test")
     def storage_self_test():
-        url = os.getenv("SUPABASE_URL", "").strip()
+        url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
         key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
         bucket = os.getenv("SUPABASE_BUCKET", "vaelith-project-files").strip()
         result = {
@@ -28,14 +31,30 @@ def install(app: FastAPI) -> None:
             result["connection"] = "blocked"
             result["detail"] = "As credenciais do Supabase não estão disponíveis no ambiente de produção."
             return result
+
+        endpoint = f"{url}/storage/v1/object/list/{bucket}"
+        payload = json.dumps({"prefix": "", "limit": 1, "offset": 0}).encode("utf-8")
+        request = urllib.request.Request(
+            endpoint,
+            data=payload,
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {key}",
+                "apikey": key,
+                "Content-Type": "application/json",
+            },
+        )
         try:
-            from supabase import create_client
-            client = create_client(url.rstrip("/"), key)
-            objects = client.storage.from_(bucket).list("", {"limit": 1})
+            with urllib.request.urlopen(request, timeout=15) as response:
+                body = json.loads(response.read().decode("utf-8") or "[]")
             result["ok"] = True
             result["connection"] = "connected"
             result["detail"] = "Conexão autenticada e bucket acessível."
-            result["sampleCount"] = len(objects or [])
+            result["sampleCount"] = len(body) if isinstance(body, list) else 0
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            result["connection"] = "failed"
+            result["detail"] = f"HTTP {exc.code}: {detail[:240]}"
         except Exception as exc:
             result["connection"] = "failed"
             result["detail"] = str(exc)[:300]
