@@ -4,7 +4,7 @@ from server import app
 from supabase_runtime import install
 from storage_selftest import install as install_storage_selftest
 
-# Entrypoint reload marker: 2026-07-27T01:15Z
+# Entrypoint reload marker: 2026-07-27T01:20Z
 if not any(getattr(route, "path", None) == "/api/storage/status" for route in app.routes):
     install(app)
 if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in app.routes):
