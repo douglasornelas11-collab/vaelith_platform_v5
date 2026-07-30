@@ -7,6 +7,34 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+
+def _guarantee_static_runtime() -> None:
+    """Install the static asset routes before server.py creates the FastAPI app."""
+    try:
+        from fastapi import FastAPI
+
+        if getattr(FastAPI, "_vaelith_static_runtime_patch", False):
+            return
+
+        original_init = FastAPI.__init__
+
+        def patched_init(self, *args, **kwargs):
+            original_init(self, *args, **kwargs)
+            try:
+                from static_runtime import install
+                install(self)
+            except Exception as exc:
+                print(f"VAELITH_STATIC_DIRECT_INSTALL_ERROR: {exc}")
+
+        FastAPI.__init__ = patched_init
+        FastAPI._vaelith_static_runtime_patch = True
+    except Exception as exc:
+        print(f"VAELITH_STATIC_DIRECT_PATCH_ERROR: {exc}")
+
+
+_guarantee_static_runtime()
+
+
 DISCIPLINES: dict[str, dict[str, Any]] = {
     "ARQ": {"name": "Arquitetura", "tokens": {"ARQ", "ARQUITETURA", "ARCH"}, "core": True},
     "EST": {"name": "Estrutura", "tokens": {"EST", "ESTRUTURA", "STR", "STRUCT"}, "core": True},
