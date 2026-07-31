@@ -1,5 +1,6 @@
 (()=>{
-  const MAX_BYTES=250*1024*1024;
+  let maxFileMb=50;
+  let maxBytes=maxFileMb*1024*1024;
   const input=document.getElementById('fileInput');
   const uploadButton=document.getElementById('upload');
   const dropZone=document.getElementById('dropZone');
@@ -10,11 +11,15 @@
 
   async function storageStatus(){
     try{
-      const r=await fetch('/api/storage/status');
+      const r=await fetch('/api/storage/status',{cache:'no-store'});
       const d=await r.json();
+      if(Number(d.maxFileMb)>0){
+        maxFileMb=Number(d.maxFileMb);
+        maxBytes=maxFileMb*1024*1024;
+      }
       window.vaelithStorageReady=Boolean(d.configured&&d.directUpload);
       const badge=document.querySelector('#base .title-row .badge');
-      if(badge) badge.textContent=window.vaelithStorageReady?`ATÉ ${d.maxFileMb} MB POR ARQUIVO · ARMAZENAMENTO PERMANENTE`:'ARMAZENAMENTO AINDA NÃO CONECTADO';
+      if(badge) badge.textContent=window.vaelithStorageReady?`ATÉ ${maxFileMb} MB POR ARQUIVO · ARMAZENAMENTO PERMANENTE`:'ARMAZENAMENTO AINDA NÃO CONECTADO';
       return d;
     }catch{return {configured:false,maxFileMb:4}}
   }
@@ -23,9 +28,9 @@
     S.queue=[...files].map((file,i)=>({
       id:Date.now()+'-'+i,
       file,
-      status:file.size>MAX_BYTES?'blocked':'waiting',
+      status:file.size>maxBytes?'blocked':'waiting',
       progress:0,
-      message:file.size>MAX_BYTES?'Arquivo acima do limite de 250 MB.':'Aguardando upload permanente'
+      message:file.size>maxBytes?`Arquivo acima do limite atual de ${maxFileMb} MB.`:'Aguardando upload permanente'
     }));
     originalRender();
   }
