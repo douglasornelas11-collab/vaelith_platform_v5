@@ -1,4 +1,4 @@
-"""Runtime database and storage bridge for Vaelith."""
+"""Runtime database, authentication and storage bridge for Vaelith."""
 from __future__ import annotations
 
 import os
@@ -124,8 +124,8 @@ if _URL:
 
 
 # FastAPI is patched before server.py creates the application. This keeps the
-# storage, static assets and unified operational integrations isolated while
-# preserving the current application code.
+# authentication, storage, static assets and operational integrations isolated
+# while preserving the current application code.
 try:
     from fastapi import FastAPI
 
@@ -134,6 +134,11 @@ try:
 
     def _vaelith_init(self, *args, **kwargs):
         _original_init(self, *args, **kwargs)
+        try:
+            from auth_runtime import install as install_auth
+            install_auth(self)
+        except Exception as exc:
+            print(f"VAELITH_AUTH_INSTALL_ERROR: {exc}")
         try:
             from static_runtime import install as install_static
             install_static(self)
