@@ -13,6 +13,7 @@ from storage_bucket_fix import install as install_bucket_fix
 from supabase_runtime import install as install_storage
 from storage_selftest import install as install_storage_selftest
 from complete_runtime_v1 import install as install_complete_runtime
+from complete_runtime_patch import install as install_complete_runtime_patch
 from complete_status import install as install_complete_status
 from complete_v1_probe import install as install_complete_v1_probe
 from revision_transaction_probe import install as install_revision_transaction_probe
@@ -53,6 +54,7 @@ if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in
 # Install the production modules: revision control, planning, change control,
 # controlled reports, intelligence, audit trail and IFC geometry processing.
 install_complete_runtime(app)
+install_complete_runtime_patch()
 install_complete_status(app)
 install_complete_v1_probe(app)
 install_revision_transaction_probe(app)
@@ -134,4 +136,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:12-03:00-complete-v1-test-revision"
+PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:12-03:00-complete-v1-test-audit-fix"
