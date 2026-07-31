@@ -8,6 +8,19 @@ from fastapi import HTTPException
 def install() -> None:
     import supabase_runtime as storage
 
+    def apply_real_limit(data: dict | None) -> int:
+        value = (data or {}).get("file_size_limit") if isinstance(data, dict) else None
+        try:
+            if value:
+                storage.MAX_FILE_MB = max(1, int(value) // (1024 * 1024))
+                return storage.MAX_FILE_MB
+        except (TypeError, ValueError):
+            pass
+        # The project rejected 250 MB. Use a conservative ceiling when the
+        # bucket inherits the project-wide setting and does not expose it.
+        storage.MAX_FILE_MB = min(int(storage.MAX_FILE_MB), 50)
+        return storage.MAX_FILE_MB
+
     def ensure_bucket() -> dict:
         valid, detail = storage._credential_status()
         if not valid:
@@ -24,20 +37,40 @@ def install() -> None:
                 data = response.json()
             except ValueError:
                 data = {}
-            return {"ready": True, "created": False, "bucket": storage.BUCKET, "data": data}
+            limit = apply_real_limit(data)
+            return {
+                "ready": True,
+                "created": False,
+                "bucket": storage.BUCKET,
+                "data": data,
+                "maxFileMb": limit,
+            }
         if not missing:
             raise HTTPException(
                 502,
                 f"Não foi possível consultar o bucket: HTTP {response.status_code}: {text[:240]}",
             )
-        payload = {
+
+        configured_payload = {
             "id": storage.BUCKET,
             "name": storage.BUCKET,
             "public": False,
-            "file_size_limit": storage.MAX_FILE_MB * 1024 * 1024,
+            "file_size_limit": int(storage.MAX_FILE_MB) * 1024 * 1024,
         }
-        created = storage._request("POST", "/bucket", payload)
+        created = storage._request("POST", "/bucket", configured_payload)
         created_text = created.text[:400]
+        too_large = created.status_code == 400 and any(
+            marker in created_text.lower()
+            for marker in ("entitytoolarge", "payload too large", "maximum allowed size")
+        )
+        if too_large:
+            # Let Supabase inherit the real project-wide limit.
+            created = storage._request(
+                "POST",
+                "/bucket",
+                {"id": storage.BUCKET, "name": storage.BUCKET, "public": False},
+            )
+            created_text = created.text[:400]
         duplicate = created.status_code in {400, 409} and any(
             marker in created_text.lower()
             for marker in ("already", "exists", "duplicate")
@@ -53,6 +86,17 @@ def install() -> None:
                 502,
                 f"O bucket foi solicitado, mas não ficou acessível: HTTP {check.status_code}: {check.text[:240]}",
             )
-        return {"ready": True, "created": not duplicate, "bucket": storage.BUCKET}
+        try:
+            data = check.json()
+        except ValueError:
+            data = {}
+        limit = apply_real_limit(data)
+        return {
+            "ready": True,
+            "created": not duplicate,
+            "bucket": storage.BUCKET,
+            "data": data,
+            "maxFileMb": limit,
+        }
 
     storage.ensure_bucket = ensure_bucket
