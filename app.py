@@ -15,10 +15,6 @@ from storage_selftest import install as install_storage_selftest
 from complete_runtime_v1 import install as install_complete_runtime
 from complete_runtime_patch import install as install_complete_runtime_patch
 from complete_status import install as install_complete_status
-from complete_v1_probe import install as install_complete_v1_probe
-from revision_transaction_probe import install as install_revision_transaction_probe
-from pdf_transaction_probe import install as install_pdf_transaction_probe
-from orphan_storage_cleanup import install as install_orphan_storage_cleanup
 
 BASE = Path(__file__).resolve().parent
 
@@ -53,19 +49,14 @@ if not any(getattr(route, "path", None) == "/api/storage/status" for route in ap
 if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in app.routes):
     install_storage_selftest(app)
 
-# Install the production modules: revision control, planning, change control,
-# controlled reports, intelligence, audit trail and IFC geometry processing.
+# Complete V1 modules: revision control, impact consolidation, planning,
+# change control, controlled reports, intelligence, audit trail and IFC BIM.
 install_complete_runtime(app)
 install_complete_runtime_patch()
 install_complete_status(app)
-install_complete_v1_probe(app)
-install_revision_transaction_probe(app)
-install_pdf_transaction_probe(app)
-install_orphan_storage_cleanup(app)
 
 
-# The current login page uses this stable path. Keep it as a compatibility
-# alias while the versioned v3 endpoint remains the source of truth.
+# Stable compatibility alias for the professional login screen.
 @app.get("/api/auth/professional-status", include_in_schema=False)
 def professional_status_compatibility_alias():
     import professional_auth_v3 as auth
@@ -116,11 +107,11 @@ def current_app_page(vaelith_session: str | None = Cookie(None)):
     )
     html = html.replace(
         "</head>",
-        '<link rel="stylesheet" href="/complete-ui.css?v=20260731-1812"></head>',
+        '<link rel="stylesheet" href="/complete-ui.css?v=20260731-2155"></head>',
     )
     html = html.replace(
         "</body>",
-        '<script src="/complete-ui.js?v=20260731-1812"></script></body>',
+        '<script src="/complete-ui.js?v=20260731-2155"></script></body>',
     )
     return HTMLResponse(
         html,
@@ -140,4 +131,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:12-03:00-complete-v1-cleanup"
+PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:55-03:00-complete-v1"
