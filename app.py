@@ -49,4 +49,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PROFESSIONAL_AUTH_BUILD = "2026-07-31T08:57-03:00"
+PROFESSIONAL_AUTH_BUILD = "2026-07-31T09:01-03:00"
