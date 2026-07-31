@@ -1,4 +1,4 @@
-"""Runtime database, authentication and storage bridge for Vaelith."""
+"""Runtime database and storage bridge for Vaelith."""
 from __future__ import annotations
 
 import os
@@ -59,6 +59,7 @@ class CursorBridge:
 class ConnectionBridge:
     def __init__(self, url: str):
         import psycopg
+
         self._connection = psycopg.connect(url, autocommit=False)
         self.row_factory = None
 
@@ -123,9 +124,8 @@ if _URL:
     _sqlite3.connect = connect
 
 
-# FastAPI is patched before server.py creates the application. This keeps the
-# authentication, storage, static assets and operational integrations isolated
-# while preserving the current application code.
+# FastAPI is patched before server.py creates the application. Authentication
+# is installed later by app.py, after the base application has initialized.
 try:
     from fastapi import FastAPI
 
@@ -135,22 +135,20 @@ try:
     def _vaelith_init(self, *args, **kwargs):
         _original_init(self, *args, **kwargs)
         try:
-            from professional_auth_v2 import install as install_auth
-            install_auth(self)
-        except Exception as exc:
-            print(f"VAELITH_AUTH_V2_INSTALL_ERROR: {type(exc).__name__}: {exc}")
-        try:
             from static_runtime import install as install_static
+
             install_static(self)
         except Exception as exc:
             print(f"VAELITH_STATIC_INSTALL_ERROR: {exc}")
         try:
             from supabase_runtime import install as install_storage
+
             install_storage(self)
         except Exception as exc:
             print(f"VAELITH_STORAGE_INSTALL_ERROR: {exc}")
         try:
             from unified_runtime_v2 import install as install_unified
+
             install_unified(self)
         except Exception as exc:
             print(f"VAELITH_UNIFIED_INSTALL_ERROR: {exc}")
@@ -166,7 +164,10 @@ try:
                 response = await func(request, call_next)
                 csp = response.headers.get("Content-Security-Policy", "")
                 if "connect-src 'self'" in csp:
-                    csp = csp.replace("connect-src 'self'", "connect-src 'self' https://*.supabase.co")
+                    csp = csp.replace(
+                        "connect-src 'self'",
+                        "connect-src 'self' https://*.supabase.co",
+                    )
                 response.headers["Content-Security-Policy"] = csp
                 return response
 
