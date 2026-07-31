@@ -4,6 +4,9 @@ import json
 from uuid import uuid4
 
 
+PATCH_VERSION = "complete-v1-audit-20260731"
+
+
 def install() -> None:
     """Apply small production-safe corrections to Complete Runtime V1."""
     import complete_runtime_v1 as runtime
