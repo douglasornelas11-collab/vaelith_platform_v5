@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import traceback
 from uuid import uuid4
 
 import httpx
@@ -28,14 +29,23 @@ def install(app: FastAPI) -> None:
                         "INSERT INTO files(id,project_id,name,ext,size,discipline,revision,uploaded,discipline_code,checksum,storage_path,mime) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
                         (fid, pid, f"ARQ_TESTE_{revision}.pdf", ".pdf", 100, "Arquitetura", revision, server.now(), "ARQ", "", "", "application/pdf"),
                     )
-            transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+            transport = httpx.ASGITransport(app=app, raise_app_exceptions=True)
             async with httpx.AsyncClient(transport=transport, base_url="https://vaelith.local", cookies=cookie) as client:
                 before = await client.get(f"/api/projects/{pid}/revisions")
-                patch = await client.patch(f"/api/projects/{pid}/revisions/{f2}", json={"status":"active","approved":True,"notes":"Teste"})
+                try:
+                    patch = await client.patch(f"/api/projects/{pid}/revisions/{f2}", json={"status":"active","approved":True,"notes":"Teste"})
+                    patch_result = {"status": patch.status_code, "body": patch.text[:3000]}
+                except Exception as exc:
+                    patch_result = {
+                        "status": 500,
+                        "exceptionType": type(exc).__name__,
+                        "exception": str(exc),
+                        "traceback": traceback.format_exc()[-8000:],
+                    }
                 after = await client.get(f"/api/projects/{pid}/revisions")
             return {
                 "before": {"status": before.status_code, "body": before.text[:3000]},
-                "patch": {"status": patch.status_code, "body": patch.text[:3000]},
+                "patch": patch_result,
                 "after": {"status": after.status_code, "body": after.text[:3000]},
             }
         finally:
