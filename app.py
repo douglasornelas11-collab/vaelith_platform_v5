@@ -63,6 +63,15 @@ install_complete_runtime(app)
 install_complete_runtime_patch()
 install_complete_status(app)
 
+# Publish the same product identity in diagnostics and OpenAPI.
+app.title = "VAELITH Platform"
+app.version = "9.0-complete-v1"
+app.description = (
+    "Plataforma de compatibilização, controle documental, ocorrências, "
+    "impactos, planejamento, mudanças, relatórios e coordenação BIM IFC."
+)
+app.openapi_schema = None
+
 
 @app.get("/api/health", include_in_schema=False)
 def current_health():
@@ -132,11 +141,11 @@ def current_app_page(vaelith_session: str | None = Cookie(None)):
     )
     html = html.replace(
         "</head>",
-        '<link rel="stylesheet" href="/complete-ui.css?v=20260731-2159"></head>',
+        '<link rel="stylesheet" href="/complete-ui.css?v=20260731-2205"></head>',
     )
     html = html.replace(
         "</body>",
-        '<script src="/complete-ui.js?v=20260731-2159"></script></body>',
+        '<script src="/complete-ui.js?v=20260731-2205"></script></body>',
     )
     return HTMLResponse(
         html,
@@ -156,4 +165,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:59-03:00-complete-v1"
+PRODUCTION_RUNTIME_BUILD = "2026-07-31T19:05-03:00-complete-v1"
