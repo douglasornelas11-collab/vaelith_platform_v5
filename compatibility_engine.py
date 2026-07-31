@@ -8,31 +8,40 @@ from pathlib import Path
 from typing import Any
 
 
-def _guarantee_static_runtime() -> None:
-    """Install the static asset routes before server.py creates the FastAPI app."""
+def _guarantee_platform_runtimes() -> None:
+    """Install visual and operational routes before server.py creates the FastAPI app."""
     try:
         from fastapi import FastAPI
 
-        if getattr(FastAPI, "_vaelith_static_runtime_patch", False):
+        if getattr(FastAPI, "_vaelith_platform_runtime_patch", False):
             return
 
         original_init = FastAPI.__init__
 
         def patched_init(self, *args, **kwargs):
             original_init(self, *args, **kwargs)
-            try:
-                from static_runtime import install
-                install(self)
-            except Exception as exc:
-                print(f"VAELITH_STATIC_DIRECT_INSTALL_ERROR: {exc}")
+            paths = {getattr(route, "path", None) for route in getattr(self, "routes", [])}
+            if "/platform-v3.css" not in paths:
+                try:
+                    from static_runtime import install as install_static
+                    install_static(self)
+                except Exception as exc:
+                    print(f"VAELITH_STATIC_DIRECT_INSTALL_ERROR: {exc}")
+            paths = {getattr(route, "path", None) for route in getattr(self, "routes", [])}
+            if "/api/projects/{pid}/operational/dashboard" not in paths:
+                try:
+                    from unified_runtime_v2 import install as install_unified
+                    install_unified(self)
+                except Exception as exc:
+                    print(f"VAELITH_UNIFIED_DIRECT_INSTALL_ERROR: {exc}")
 
         FastAPI.__init__ = patched_init
-        FastAPI._vaelith_static_runtime_patch = True
+        FastAPI._vaelith_platform_runtime_patch = True
     except Exception as exc:
-        print(f"VAELITH_STATIC_DIRECT_PATCH_ERROR: {exc}")
+        print(f"VAELITH_PLATFORM_DIRECT_PATCH_ERROR: {exc}")
 
 
-_guarantee_static_runtime()
+_guarantee_platform_runtimes()
 
 
 DISCIPLINES: dict[str, dict[str, Any]] = {
