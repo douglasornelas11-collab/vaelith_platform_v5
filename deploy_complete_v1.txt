@@ -1,2 +1,3 @@
 VAELITH Platform Complete V1 production build
-2026-07-31T19:01:00-03:00
+2026-07-31T19:07:00-03:00
+OpenAPI metadata aligned with version 9.0-complete-v1.
