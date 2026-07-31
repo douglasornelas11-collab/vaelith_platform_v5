@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+
+# Temporary compatibility shim used only by the isolated stress-test runtime.
+if not hasattr(hashlib, "compare_digest"):
+    hashlib.compare_digest = hmac.compare_digest
+
 from server import app
 from professional_auth_v3 import install as install_professional_auth
 from demo_runtime import seed_realistic_demo
@@ -40,4 +47,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PROFESSIONAL_AUTH_BUILD = "2026-07-31T08:50-03:00"
+PROFESSIONAL_AUTH_BUILD = "2026-07-31T08:52-03:00"
