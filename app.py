@@ -49,6 +49,14 @@ if not any(getattr(route, "path", None) == "/api/storage/status" for route in ap
 if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in app.routes):
     install_storage_selftest(app)
 
+# The storage runtime also registers legacy health metadata. Remove it after
+# storage installation so the single authoritative Complete V1 route can be
+# registered below without a route-order collision.
+app.router.routes = [
+    route for route in app.router.routes
+    if getattr(route, "path", None) != "/api/health"
+]
+
 # Complete V1 modules: revision control, impact consolidation, planning,
 # change control, controlled reports, intelligence, audit trail and IFC BIM.
 install_complete_runtime(app)
@@ -124,11 +132,11 @@ def current_app_page(vaelith_session: str | None = Cookie(None)):
     )
     html = html.replace(
         "</head>",
-        '<link rel="stylesheet" href="/complete-ui.css?v=20260731-2157"></head>',
+        '<link rel="stylesheet" href="/complete-ui.css?v=20260731-2159"></head>',
     )
     html = html.replace(
         "</body>",
-        '<script src="/complete-ui.js?v=20260731-2157"></script></body>',
+        '<script src="/complete-ui.js?v=20260731-2159"></script></body>',
     )
     return HTMLResponse(
         html,
@@ -148,4 +156,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:57-03:00-complete-v1"
+PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:59-03:00-complete-v1"
