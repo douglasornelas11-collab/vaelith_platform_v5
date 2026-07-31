@@ -152,5 +152,31 @@ def install(app: FastAPI) -> None:
             response.headers["Expires"] = "0"
         return response
 
+    @app.get("/api/auth/self-test", include_in_schema=False)
+    def stateless_auth_self_test():
+        import server
 
-AUTH_RUNTIME_BUILD_MARKER = "2026-07-30T22:35-03:00"
+        _install_server_patch()
+        deterministic_token = _sign("demo@vaelithlabs.com.br", 4102444800)
+        payload = _verify(deterministic_token)
+        user = server.current_user(deterministic_token)
+        cookie_header = _signed_cookie_header(deterministic_token)
+        fingerprint = hashlib.sha256(deterministic_token.encode("utf-8")).hexdigest()[:16]
+        checks = {
+            "tokenSigned": deterministic_token.startswith(TOKEN_PREFIX),
+            "tokenVerified": bool(payload and payload.get("email") == "demo@vaelithlabs.com.br"),
+            "userResolved": bool(user and user.get("email") == "demo@vaelithlabs.com.br"),
+            "cookieHttpOnly": "HttpOnly" in cookie_header,
+            "cookieSecure": "Secure" in cookie_header if os.getenv("VERCEL") else True,
+            "cookiePath": "Path=/" in cookie_header,
+            "cookieSameSite": "SameSite=Lax" in cookie_header,
+        }
+        return {
+            "ok": all(checks.values()),
+            "mode": "stateless-signed-cookie-v2",
+            "fingerprint": fingerprint,
+            "checks": checks,
+        }
+
+
+AUTH_RUNTIME_BUILD_MARKER = "2026-07-30T22:38-03:00"
