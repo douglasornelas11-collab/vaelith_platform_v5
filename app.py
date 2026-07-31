@@ -12,7 +12,6 @@ from professional_auth_v3 import install as install_professional_auth
 from storage_bucket_fix import install as install_bucket_fix
 from supabase_runtime import install as install_storage
 from storage_selftest import install as install_storage_selftest
-from full_functional_probe import install as install_full_functional_probe
 
 BASE = Path(__file__).resolve().parent
 
@@ -47,9 +46,9 @@ if not any(getattr(route, "path", None) == "/api/storage/status" for route in ap
 if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in app.routes):
     install_storage_selftest(app)
 
-install_full_functional_probe(app)
 
-
+# The current login page uses this stable path. Keep it as a compatibility
+# alias while the versioned v3 endpoint remains the source of truth.
 @app.get("/api/auth/professional-status", include_in_schema=False)
 def professional_status_compatibility_alias():
     import professional_auth_v3 as auth
@@ -98,4 +97,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:05-03:00"
+PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:08-03:00"
