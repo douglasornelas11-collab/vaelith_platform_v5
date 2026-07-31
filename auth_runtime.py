@@ -116,6 +116,10 @@ def _install_server_patch() -> None:
 
 
 def install(app: FastAPI) -> None:
+    if getattr(app.state, "_vaelith_auth_runtime_installed", False):
+        return
+    app.state._vaelith_auth_runtime_installed = True
+
     @app.middleware("http")
     async def stateless_auth_middleware(request: Request, call_next):
         try:
@@ -149,5 +153,4 @@ def install(app: FastAPI) -> None:
         return response
 
 
-# This marker intentionally changes when a clean authentication deployment is required.
-AUTH_RUNTIME_BUILD_MARKER = "2026-07-30T22:27-03:00"
+AUTH_RUNTIME_BUILD_MARKER = "2026-07-30T22:35-03:00"
