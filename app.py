@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+from fastapi.responses import Response
+
 from server import app
 from persistent_runtime import install as install_persistent_runtime
 from professional_auth_v3 import install as install_professional_auth
@@ -7,20 +11,24 @@ from storage_bucket_fix import install as install_bucket_fix
 from supabase_runtime import install as install_storage
 from storage_selftest import install as install_storage_selftest
 
+BASE = Path(__file__).resolve().parent
+
 # server.py still initializes its legacy local structures while importing. From
 # this point onward, every operational request uses the shared PostgreSQL.
 install_persistent_runtime()
 install_bucket_fix()
 
-# Remove only the legacy endpoints whose implementation writes to /tmp. The
-# persistent Supabase endpoints, installed earlier by the runtime bootstrap,
-# remain registered.
+# Remove legacy endpoints that write to /tmp and the embedded stale copy of the
+# Supabase client. The current file is served explicitly below.
 _LEGACY_ENDPOINT_NAMES = {"health", "upload", "delete_file", "download_file"}
 app.router.routes = [
     route
     for route in app.router.routes
-    if getattr(getattr(route, "endpoint", None), "__name__", "")
-    not in _LEGACY_ENDPOINT_NAMES
+    if (
+        getattr(getattr(route, "endpoint", None), "__name__", "")
+        not in _LEGACY_ENDPOINT_NAMES
+        and getattr(route, "path", None) != "/supabase-upload.js"
+    )
 ]
 
 if not any(
@@ -36,6 +44,15 @@ if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in
     install_storage_selftest(app)
 
 
+@app.get("/supabase-upload.js", include_in_schema=False)
+def current_supabase_upload_client():
+    return Response(
+        (BASE / "supabase-upload.js").read_text(encoding="utf-8"),
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-store, max-age=0, must-revalidate"},
+    )
+
+
 @app.middleware("http")
 async def allow_supabase_direct_upload(request, call_next):
     response = await call_next(request)
@@ -48,4 +65,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-07-31T09:32-03:00"
+PRODUCTION_RUNTIME_BUILD = "2026-07-31T09:35-03:00"
