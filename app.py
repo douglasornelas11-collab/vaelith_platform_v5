@@ -1,24 +1,35 @@
 from __future__ import annotations
 
 from server import app
+from persistent_runtime import install as install_persistent_runtime
 from professional_auth_v3 import install as install_professional_auth
-from demo_runtime import seed_realistic_demo
-from supabase_runtime import install
+from supabase_runtime import install as install_storage
 from storage_selftest import install as install_storage_selftest
 
-# Install professional authentication only after server.py has initialized. The
-# account is stored in its own PostgreSQL table and no longer depends on a
-# temporary serverless instance.
+# server.py still initializes its legacy local structures while importing. From
+# this point onward, every operational request uses the shared PostgreSQL.
+install_persistent_runtime()
+
+# Remove only the legacy endpoints whose implementation writes to /tmp. The
+# persistent Supabase endpoints, installed earlier by the runtime bootstrap,
+# remain registered.
+_LEGACY_ENDPOINT_NAMES = {"health", "upload", "delete_file", "download_file"}
+app.router.routes = [
+    route
+    for route in app.router.routes
+    if getattr(getattr(route, "endpoint", None), "__name__", "")
+    not in _LEGACY_ENDPOINT_NAMES
+]
+
 if not any(
     getattr(route, "path", None) == "/api/auth/persistence-self-test-v3"
     for route in app.routes
 ):
     install_professional_auth(app)
 
-seed_realistic_demo()
-
+# Install storage routes only when the early runtime bootstrap was unavailable.
 if not any(getattr(route, "path", None) == "/api/storage/status" for route in app.routes):
-    install(app)
+    install_storage(app)
 if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in app.routes):
     install_storage_selftest(app)
 
@@ -35,4 +46,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PROFESSIONAL_AUTH_BUILD = "2026-07-31T09:05-03:00"
+PRODUCTION_RUNTIME_BUILD = "2026-07-31T09:15-03:00"
