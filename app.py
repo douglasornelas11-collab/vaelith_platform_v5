@@ -13,6 +13,7 @@ from storage_bucket_fix import install as install_bucket_fix
 from supabase_runtime import install as install_storage
 from storage_selftest import install as install_storage_selftest
 from complete_runtime_v1 import install as install_complete_runtime
+from complete_status import install as install_complete_status
 
 BASE = Path(__file__).resolve().parent
 
@@ -50,6 +51,7 @@ if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in
 # Install the production modules: revision control, planning, change control,
 # controlled reports, intelligence, audit trail and IFC geometry processing.
 install_complete_runtime(app)
+install_complete_status(app)
 
 
 # The current login page uses this stable path. Keep it as a compatibility
