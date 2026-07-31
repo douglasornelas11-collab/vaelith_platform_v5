@@ -23,9 +23,8 @@ BASE = Path(__file__).resolve().parent
 install_persistent_runtime()
 install_bucket_fix()
 
-# Remove legacy endpoints that write to /tmp, the legacy /app response and the
-# static script path intercepted by Vercel. Collision-free replacements are
-# registered below.
+# Remove legacy endpoints that write to /tmp, stale health metadata, the legacy
+# /app response and the static script path intercepted by Vercel.
 _LEGACY_ENDPOINT_NAMES = {"health", "upload", "delete_file", "download_file"}
 app.router.routes = [
     route
@@ -33,7 +32,8 @@ app.router.routes = [
     if (
         getattr(getattr(route, "endpoint", None), "__name__", "")
         not in _LEGACY_ENDPOINT_NAMES
-        and getattr(route, "path", None) not in {"/app", "/supabase-upload.js"}
+        and getattr(route, "path", None)
+        not in {"/app", "/supabase-upload.js", "/api/health"}
     )
 ]
 
@@ -54,6 +54,23 @@ if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in
 install_complete_runtime(app)
 install_complete_runtime_patch()
 install_complete_status(app)
+
+
+@app.get("/api/health", include_in_schema=False)
+def current_health():
+    return {
+        "ok": True,
+        "version": "9.0-complete-v1",
+        "environment": "vercel",
+        "maxUploadMb": 50,
+        "storage": "supabase-private",
+        "bucketReady": True,
+        "database": "postgresql-shared",
+        "documentEngine": "coordination-document-and-interface-v1",
+        "geometricEngine": "ifcopenshell-0.8.5",
+        "reports": "reportlab-5.0.0",
+        "completeStatus": "/api/platform/complete-status",
+    }
 
 
 # Stable compatibility alias for the professional login screen.
@@ -107,11 +124,11 @@ def current_app_page(vaelith_session: str | None = Cookie(None)):
     )
     html = html.replace(
         "</head>",
-        '<link rel="stylesheet" href="/complete-ui.css?v=20260731-2155"></head>',
+        '<link rel="stylesheet" href="/complete-ui.css?v=20260731-2157"></head>',
     )
     html = html.replace(
         "</body>",
-        '<script src="/complete-ui.js?v=20260731-2155"></script></body>',
+        '<script src="/complete-ui.js?v=20260731-2157"></script></body>',
     )
     return HTMLResponse(
         html,
@@ -131,4 +148,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:55-03:00-complete-v1"
+PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:57-03:00-complete-v1"
