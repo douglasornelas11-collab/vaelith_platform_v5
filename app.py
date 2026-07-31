@@ -13,6 +13,7 @@ from storage_bucket_fix import install as install_bucket_fix
 from supabase_runtime import install as install_storage
 from storage_selftest import install as install_storage_selftest
 from retest_probe import install as install_retest_probe
+from cleanup_retest import install as install_cleanup_retest
 
 BASE = Path(__file__).resolve().parent
 
@@ -48,6 +49,7 @@ if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in
     install_storage_selftest(app)
 
 install_retest_probe(app)
+install_cleanup_retest(app)
 
 
 @app.get("/supabase-upload-v2.js", include_in_schema=False)
@@ -86,4 +88,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-07-31T17:47-03:00"
+PRODUCTION_RUNTIME_BUILD = "2026-07-31T17:51-03:00"
