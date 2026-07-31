@@ -50,6 +50,18 @@ if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in
 install_full_functional_probe(app)
 
 
+@app.get("/api/auth/professional-status", include_in_schema=False)
+def professional_status_compatibility_alias():
+    import professional_auth_v3 as auth
+    return {
+        "professional": True,
+        "ownerConfigured": bool(auth._owner()),
+        "database": "postgresql",
+        "sessionMode": "signed-cookie-v6",
+        "passwordHash": "scrypt-v1",
+    }
+
+
 @app.get("/supabase-upload-v2.js", include_in_schema=False)
 def current_supabase_upload_client():
     return Response(
@@ -86,4 +98,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-07-31T17:56-03:00"
+PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:05-03:00"
