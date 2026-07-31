@@ -7,6 +7,7 @@ from storage_bucket_fix import install as install_bucket_fix
 from supabase_runtime import install as install_storage
 from storage_selftest import install as install_storage_selftest
 from postfix_validation import install as install_postfix_validation
+from postfix_validation_get import install as install_postfix_validation_get
 
 # server.py still initializes its legacy local structures while importing. From
 # this point onward, every operational request uses the shared PostgreSQL.
@@ -37,6 +38,7 @@ if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in
     install_storage_selftest(app)
 
 install_postfix_validation(app)
+install_postfix_validation_get(app)
 
 
 @app.middleware("http")
@@ -51,4 +53,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-07-31T09:27-03:00"
+PRODUCTION_RUNTIME_BUILD = "2026-07-31T09:30-03:00"
