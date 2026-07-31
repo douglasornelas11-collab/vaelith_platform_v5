@@ -6,12 +6,19 @@ from html import escape
 from uuid import uuid4
 
 
-PATCH_VERSION = "complete-v1-audit-pdf-20260731"
+PATCH_VERSION = "complete-v1-audit-pdf-intelligence-20260731"
+
+
+def _brl(value: float) -> str:
+    text = f"{float(value or 0):,.2f}"
+    return text.replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def install() -> None:
     """Apply production-safe corrections to Complete Runtime V1."""
     import complete_runtime_v1 as runtime
+
+    original_intelligence_answer = runtime.intelligence_answer
 
     def corrected_audit(c, pid, actor, action, entity_type, entity_id, detail=None):
         c.execute(
@@ -80,7 +87,7 @@ def install() -> None:
             ["Gate", str(analysis.get("gate") or "Não executada")],
             ["Arquivos", str(len(snapshot.get("files") or []))],
             ["Ocorrências", str(len(snapshot.get("issues") or []))],
-            ["Impacto financeiro", f"R$ {impact['cost']:,.2f}"],
+            ["Impacto financeiro", f"R$ {_brl(impact['cost'])}"],
             ["Impacto em prazo", f"{impact['days']} dias"],
         ]
         summary_table = Table(summary, colWidths=[55 * mm, 115 * mm])
@@ -123,5 +130,54 @@ def install() -> None:
         doc.build(story)
         return stream.getvalue()
 
+    def corrected_intelligence_answer(pid: str, question: str) -> dict:
+        q = question.lower().strip()
+        cost_terms = ("custo", "financeir", "orçamento", "orcamento", "valor")
+        schedule_terms = ("atras", "prazo", "cronograma", "dias", "entrega")
+        has_cost = any(term in q for term in cost_terms)
+        has_schedule = any(term in q for term in schedule_terms)
+        if not has_cost:
+            return original_intelligence_answer(pid, question)
+
+        snapshot = runtime.report_snapshot(pid)
+        impacts = snapshot["impacts"]["summary"]
+        changes = snapshot["changes"]["summary"]
+        planning = snapshot["planning"]["summary"]
+        budget_total = snapshot["budget"]["total"]
+        if has_schedule:
+            answer = (
+                f"Os impactos cadastrados somam R$ {_brl(impacts['cost'])} e {impacts['days']} dias. "
+                f"As mudanças não rejeitadas acumulam R$ {_brl(changes['costDelta'])} e "
+                f"{changes['scheduleDelta']} dias. O planejamento possui {planning['delayed']} atividade(s) "
+                f"atrasada(s), {planning['blocked']} bloqueada(s) e avanço médio de "
+                f"{str(planning['averageProgress']).replace('.', ',')}%. O orçamento importado totaliza "
+                f"R$ {_brl(budget_total)}."
+            )
+            sources = [
+                {"module": "Impactos", "label": f"R$ {_brl(impacts['cost'])} · {impacts['days']} dias"},
+                {"module": "Mudanças", "label": f"R$ {_brl(changes['costDelta'])} · {changes['scheduleDelta']} dias"},
+                {"module": "Planejamento", "label": f"{planning['delayed']} atrasadas"},
+                {"module": "Orçamento", "label": f"R$ {_brl(budget_total)}"},
+            ]
+        else:
+            answer = (
+                f"Os impactos cadastrados somam R$ {_brl(impacts['cost'])}. "
+                f"As mudanças não rejeitadas acumulam R$ {_brl(changes['costDelta'])}. "
+                f"O orçamento importado totaliza R$ {_brl(budget_total)}."
+            )
+            sources = [
+                {"module": "Impactos", "label": f"R$ {_brl(impacts['cost'])}"},
+                {"module": "Mudanças", "label": f"R$ {_brl(changes['costDelta'])}"},
+                {"module": "Orçamento", "label": f"R$ {_brl(budget_total)}"},
+            ]
+        return {
+            "question": question,
+            "answer": answer,
+            "sources": sources,
+            "generatedAt": runtime.now(),
+            "disclaimer": "Resposta gerada a partir dos registros da plataforma. Não substitui decisão técnica profissional.",
+        }
+
     runtime.audit = corrected_audit
     runtime.render_report_pdf = corrected_render_report_pdf
+    runtime.intelligence_answer = corrected_intelligence_answer
