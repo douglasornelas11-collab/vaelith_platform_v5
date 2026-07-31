@@ -27,10 +27,6 @@ def _legacy_module():
 
 
 def install(app: FastAPI) -> None:
-    from professional_auth_v2 import install as install_auth
-
-    install_auth(app)
-
     if getattr(app.state, "_vaelith_static_legacy_installed", False):
         return
     app.state._vaelith_static_legacy_installed = True
