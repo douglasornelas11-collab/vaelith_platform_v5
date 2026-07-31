@@ -33,3 +33,6 @@ async def allow_supabase_direct_upload(request, call_next):
             "connect-src 'self' https://*.supabase.co",
         )
     return response
+
+
+PROFESSIONAL_AUTH_BUILD = "2026-07-30T23:04-03:00"
