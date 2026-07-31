@@ -135,10 +135,10 @@ try:
     def _vaelith_init(self, *args, **kwargs):
         _original_init(self, *args, **kwargs)
         try:
-            from auth_runtime import install as install_auth
+            from professional_auth_v2 import install as install_auth
             install_auth(self)
         except Exception as exc:
-            print(f"VAELITH_AUTH_INSTALL_ERROR: {exc}")
+            print(f"VAELITH_AUTH_V2_INSTALL_ERROR: {type(exc).__name__}: {exc}")
         try:
             from static_runtime import install as install_static
             install_static(self)
