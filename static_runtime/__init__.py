@@ -27,7 +27,7 @@ def _legacy_module():
 
 
 def install(app: FastAPI) -> None:
-    from auth_runtime import install as install_auth
+    from professional_auth_v2 import install as install_auth
 
     install_auth(app)
 
