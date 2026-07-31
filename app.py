@@ -46,4 +46,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-07-31T09:15-03:00"
+PRODUCTION_RUNTIME_BUILD = "2026-07-31T09:18-03:00"
