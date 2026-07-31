@@ -147,3 +147,7 @@ def install(app: FastAPI) -> None:
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
         return response
+
+
+# This marker intentionally changes when a clean authentication deployment is required.
+AUTH_RUNTIME_BUILD_MARKER = "2026-07-30T22:27-03:00"
