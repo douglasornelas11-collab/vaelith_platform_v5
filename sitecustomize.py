@@ -124,7 +124,8 @@ if _URL:
 
 
 # FastAPI is patched before server.py creates the application. This keeps the
-# storage integration isolated while preserving the current application code.
+# storage, static assets and unified operational integrations isolated while
+# preserving the current application code.
 try:
     from fastapi import FastAPI
 
@@ -134,10 +135,20 @@ try:
     def _vaelith_init(self, *args, **kwargs):
         _original_init(self, *args, **kwargs)
         try:
-            from supabase_runtime import install
-            install(self)
+            from static_runtime import install as install_static
+            install_static(self)
+        except Exception as exc:
+            print(f"VAELITH_STATIC_INSTALL_ERROR: {exc}")
+        try:
+            from supabase_runtime import install as install_storage
+            install_storage(self)
         except Exception as exc:
             print(f"VAELITH_STORAGE_INSTALL_ERROR: {exc}")
+        try:
+            from unified_runtime_v2 import install as install_unified
+            install_unified(self)
+        except Exception as exc:
+            print(f"VAELITH_UNIFIED_INSTALL_ERROR: {exc}")
 
     def _vaelith_middleware(self, middleware_type: str):
         decorator = _original_middleware(self, middleware_type)

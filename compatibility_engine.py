@@ -1,11 +1,120 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import unicodedata
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
+
+
+def _guarantee_platform_runtimes() -> None:
+    """Install visual, operational and diagnostic routes before server startup."""
+    try:
+        from fastapi import FastAPI
+
+        if getattr(FastAPI, "_vaelith_platform_runtime_patch", False):
+            return
+
+        original_init = FastAPI.__init__
+
+        def patched_init(self, *args, **kwargs):
+            original_init(self, *args, **kwargs)
+            paths = {getattr(route, "path", None) for route in getattr(self, "routes", [])}
+            if "/platform-v3.css" not in paths:
+                try:
+                    from static_runtime import install as install_static
+                    install_static(self)
+                except Exception as exc:
+                    print(f"VAELITH_STATIC_DIRECT_INSTALL_ERROR: {exc}")
+            paths = {getattr(route, "path", None) for route in getattr(self, "routes", [])}
+            if "/api/projects/{pid}/operational/dashboard" not in paths:
+                try:
+                    from unified_runtime_v2 import install as install_unified
+                    install_unified(self)
+                except Exception as exc:
+                    print(f"VAELITH_UNIFIED_DIRECT_INSTALL_ERROR: {exc}")
+            paths = {getattr(route, "path", None) for route in getattr(self, "routes", [])}
+            if "/api/platform/self-test" not in paths:
+                @self.get("/api/platform/self-test", include_in_schema=False)
+                def platform_self_test():
+                    checks: dict[str, Any] = {}
+                    errors: list[str] = []
+                    route_paths = {getattr(route, "path", None) for route in getattr(self, "routes", [])}
+                    required_routes = [
+                        "/platform-v3.css",
+                        "/unified-ui.js",
+                        "/api/projects/{pid}/operational/dashboard",
+                        "/api/projects/{pid}/operational/issues",
+                        "/api/projects/{pid}/compatibility",
+                        "/api/projects/{pid}/budget/equalization",
+                    ]
+                    checks["routes"] = all(path in route_paths for path in required_routes)
+                    checks["routeDetails"] = {path: path in route_paths for path in required_routes}
+                    try:
+                        import server
+                        with server.conn() as connection:
+                            connection.execute("CREATE TEMP TABLE IF NOT EXISTS vaelith_self_test(id TEXT)")
+                            connection.execute("DELETE FROM vaelith_self_test")
+                            connection.execute("INSERT INTO vaelith_self_test(id) VALUES(?)", ("ok",))
+                            row = connection.execute("SELECT COUNT(*) FROM vaelith_self_test").fetchone()
+                            checks["database"] = bool(row and int(row[0]) == 1)
+                    except Exception as exc:
+                        checks["database"] = False
+                        errors.append(f"database: {type(exc).__name__}: {str(exc)[:160]}")
+                    try:
+                        from unified_runtime_v2 import ensure_schema
+                        ensure_schema()
+                        checks["operationalSchema"] = True
+                    except Exception as exc:
+                        checks["operationalSchema"] = False
+                        errors.append(f"operationalSchema: {type(exc).__name__}: {str(exc)[:160]}")
+                    try:
+                        sample = [
+                            {"name": "ARQ_R01.ifc", "ext": ".ifc", "discipline_code": "ARQ", "revision": "R01"},
+                            {"name": "EST_R01.ifc", "ext": ".ifc", "discipline_code": "EST", "revision": "R01"},
+                            {"name": "HID_R01.ifc", "ext": ".ifc", "discipline_code": "HID", "revision": "R01"},
+                            {"name": "ELE_R01.dwg", "ext": ".dwg", "discipline_code": "ELE", "revision": "R01"},
+                        ]
+                        result = build_analysis("self-test", sample)
+                        checks["compatibilityEngine"] = bool(result.get("files") == 4 and result.get("interfacePackages"))
+                        checks["compatibilitySummary"] = {
+                            "files": result.get("files"),
+                            "disciplines": len(result.get("disciplines") or []),
+                            "interfaces": len(result.get("interfacePackages") or []),
+                            "readiness": result.get("readiness"),
+                        }
+                    except Exception as exc:
+                        checks["compatibilityEngine"] = False
+                        errors.append(f"compatibilityEngine: {type(exc).__name__}: {str(exc)[:160]}")
+                    try:
+                        from supabase_runtime import configured
+                        checks["persistentStorage"] = bool(configured())
+                    except Exception as exc:
+                        checks["persistentStorage"] = False
+                        errors.append(f"persistentStorage: {type(exc).__name__}: {str(exc)[:160]}")
+                    database_provider = "postgresql" if any(
+                        os.getenv(name, "").startswith(("postgres://", "postgresql://"))
+                        for name in ("VAELITH_DB_URL", "STORAGE_URL", "DATABASE_URL", "POSTGRES_URL", "NEON_DATABASE_URL")
+                    ) else "sqlite-temporary"
+                    essential = ["routes", "database", "operationalSchema", "compatibilityEngine"]
+                    return {
+                        "ok": all(bool(checks.get(name)) for name in essential),
+                        "checks": checks,
+                        "databaseProvider": database_provider,
+                        "environment": "vercel" if os.getenv("VERCEL") else "local",
+                        "errors": errors,
+                    }
+
+        FastAPI.__init__ = patched_init
+        FastAPI._vaelith_platform_runtime_patch = True
+    except Exception as exc:
+        print(f"VAELITH_PLATFORM_DIRECT_PATCH_ERROR: {exc}")
+
+
+_guarantee_platform_runtimes()
+
 
 DISCIPLINES: dict[str, dict[str, Any]] = {
     "ARQ": {"name": "Arquitetura", "tokens": {"ARQ", "ARQUITETURA", "ARCH"}, "core": True},
