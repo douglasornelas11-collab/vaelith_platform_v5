@@ -16,10 +16,15 @@ def install() -> None:
                 return storage.MAX_FILE_MB
         except (TypeError, ValueError):
             pass
-        # The project rejected 250 MB. Use a conservative ceiling when the
-        # bucket inherits the project-wide setting and does not expose it.
+        # This Supabase project rejected a 250 MB bucket. When the bucket
+        # inherits the project-wide setting and exposes no explicit value, use
+        # the verified project ceiling consistently from process startup.
         storage.MAX_FILE_MB = min(int(storage.MAX_FILE_MB), 50)
         return storage.MAX_FILE_MB
+
+    # Do not leave a cold serverless instance temporarily advertising 250 MB.
+    # Every route starts with the same conservative, verified 50 MB ceiling.
+    apply_real_limit(None)
 
     def ensure_bucket() -> dict:
         valid, detail = storage._credential_status()
