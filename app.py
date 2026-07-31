@@ -12,6 +12,7 @@ from professional_auth_v3 import install as install_professional_auth
 from storage_bucket_fix import install as install_bucket_fix
 from supabase_runtime import install as install_storage
 from storage_selftest import install as install_storage_selftest
+from complete_runtime_v1 import install as install_complete_runtime
 
 BASE = Path(__file__).resolve().parent
 
@@ -46,6 +47,10 @@ if not any(getattr(route, "path", None) == "/api/storage/status" for route in ap
 if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in app.routes):
     install_storage_selftest(app)
 
+# Install the production modules: revision control, planning, change control,
+# controlled reports, intelligence, audit trail and IFC geometry processing.
+install_complete_runtime(app)
+
 
 # The current login page uses this stable path. Keep it as a compatibility
 # alias while the versioned v3 endpoint remains the source of truth.
@@ -70,6 +75,24 @@ def current_supabase_upload_client():
     )
 
 
+@app.get("/complete-ui.js", include_in_schema=False)
+def complete_platform_client():
+    return Response(
+        (BASE / "complete-ui.js").read_text(encoding="utf-8"),
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-store, max-age=0, must-revalidate"},
+    )
+
+
+@app.get("/complete-ui.css", include_in_schema=False)
+def complete_platform_styles():
+    return Response(
+        (BASE / "complete-ui.css").read_text(encoding="utf-8"),
+        media_type="text/css",
+        headers={"Cache-Control": "no-store, max-age=0, must-revalidate"},
+    )
+
+
 @app.get("/app", include_in_schema=False)
 def current_app_page(vaelith_session: str | None = Cookie(None)):
     if not server.current_user(vaelith_session):
@@ -78,6 +101,14 @@ def current_app_page(vaelith_session: str | None = Cookie(None)):
     html = html.replace(
         '/supabase-upload.js?v=20260729-2315',
         '/supabase-upload-v2.js?v=20260731-0938',
+    )
+    html = html.replace(
+        "</head>",
+        '<link rel="stylesheet" href="/complete-ui.css?v=20260731-1812"></head>',
+    )
+    html = html.replace(
+        "</body>",
+        '<script src="/complete-ui.js?v=20260731-1812"></script></body>',
     )
     return HTMLResponse(
         html,
@@ -97,4 +128,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:08-03:00"
+PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:12-03:00-complete-v1"
