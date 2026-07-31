@@ -15,6 +15,7 @@ from storage_selftest import install as install_storage_selftest
 from complete_runtime_v1 import install as install_complete_runtime
 from complete_status import install as install_complete_status
 from complete_v1_probe import install as install_complete_v1_probe
+from revision_transaction_probe import install as install_revision_transaction_probe
 
 BASE = Path(__file__).resolve().parent
 
@@ -54,6 +55,7 @@ if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in
 install_complete_runtime(app)
 install_complete_status(app)
 install_complete_v1_probe(app)
+install_revision_transaction_probe(app)
 
 
 # The current login page uses this stable path. Keep it as a compatibility
@@ -132,4 +134,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:12-03:00-complete-v1-test"
+PRODUCTION_RUNTIME_BUILD = "2026-07-31T18:12-03:00-complete-v1-test-revision"
