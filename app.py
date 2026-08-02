@@ -16,6 +16,7 @@ from complete_runtime_v1 import install as install_complete_runtime
 from complete_runtime_patch import install as install_complete_runtime_patch
 from pdf_runtime import install as install_pdf_runtime
 from professional_report_runtime import install as install_professional_reports
+from report_selftest import install as install_report_selftest
 from complete_status import install as install_complete_status
 
 BASE = Path(__file__).resolve().parent
@@ -51,11 +52,11 @@ app.router.routes = [
     if getattr(route, "path", None) != "/api/health"
 ]
 
-# Complete engineering platform modules.
 install_complete_runtime(app)
 install_complete_runtime_patch()
 install_pdf_runtime(app)
 install_professional_reports(app)
+install_report_selftest(app)
 install_complete_status(app)
 
 app.title = "VAELITH Platform"
@@ -83,6 +84,7 @@ def current_health():
         "geometricEngine": "ifcopenshell-0.8.5",
         "reports": "reportlab-5.0.0-professional-templates",
         "reportTemplates": ["executive", "coordination", "operational", "change_control"],
+        "reportTemplateStatus": "/api/platform/report-template-status",
         "completeStatus": "/api/platform/complete-status",
     }
 
@@ -173,11 +175,11 @@ def current_app_page(vaelith_session: str | None = Cookie(None)):
     )
     html = html.replace(
         "</head>",
-        '<link rel="stylesheet" href="/complete-ui.css?v=20260802-0015"><link rel="stylesheet" href="/pdf-ui.css?v=20260802-0015"><link rel="stylesheet" href="/report-ui.css?v=20260802-0015"></head>',
+        '<link rel="stylesheet" href="/complete-ui.css?v=20260802-0025"><link rel="stylesheet" href="/pdf-ui.css?v=20260802-0025"><link rel="stylesheet" href="/report-ui.css?v=20260802-0025"></head>',
     )
     html = html.replace(
         "</body>",
-        '<script src="/complete-ui.js?v=20260802-0015"></script><script src="/pdf-ui.js?v=20260802-0015"></script><script src="/report-ui.js?v=20260802-0015"></script></body>',
+        '<script src="/complete-ui.js?v=20260802-0025"></script><script src="/pdf-ui.js?v=20260802-0025"></script><script src="/report-ui.js?v=20260802-0025"></script></body>',
     )
     return HTMLResponse(
         html,
@@ -197,4 +199,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-08-02T00:15-03:00-professional-reports"
+PRODUCTION_RUNTIME_BUILD = "2026-08-02T00:25-03:00-professional-reports-verified"
