@@ -15,17 +15,14 @@ from storage_selftest import install as install_storage_selftest
 from complete_runtime_v1 import install as install_complete_runtime
 from complete_runtime_patch import install as install_complete_runtime_patch
 from pdf_runtime import install as install_pdf_runtime
+from professional_report_runtime import install as install_professional_reports
 from complete_status import install as install_complete_status
 
 BASE = Path(__file__).resolve().parent
 
-# server.py still initializes its legacy local structures while importing. From
-# this point onward, every operational request uses the shared PostgreSQL.
 install_persistent_runtime()
 install_bucket_fix()
 
-# Remove legacy endpoints that write to /tmp, stale health metadata, the legacy
-# /app response and the static script path intercepted by Vercel.
 _LEGACY_ENDPOINT_NAMES = {"health", "upload", "delete_file", "download_file"}
 app.router.routes = [
     route
@@ -44,32 +41,29 @@ if not any(
 ):
     install_professional_auth(app)
 
-# Install storage routes only when the early runtime bootstrap was unavailable.
 if not any(getattr(route, "path", None) == "/api/storage/status" for route in app.routes):
     install_storage(app)
 if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in app.routes):
     install_storage_selftest(app)
 
-# The storage runtime also registers legacy health metadata. Remove it after
-# storage installation so the single authoritative route can be registered below.
 app.router.routes = [
     route for route in app.router.routes
     if getattr(route, "path", None) != "/api/health"
 ]
 
-# Complete platform modules: revision control, impact consolidation, planning,
-# change control, controlled reports, intelligence, audit trail, IFC BIM and PDF analysis.
+# Complete engineering platform modules.
 install_complete_runtime(app)
 install_complete_runtime_patch()
 install_pdf_runtime(app)
+install_professional_reports(app)
 install_complete_status(app)
 
-# Publish the same product identity in diagnostics and OpenAPI.
 app.title = "VAELITH Platform"
-app.version = "9.1-pdf-intelligence"
+app.version = "9.2-professional-reports"
 app.description = (
     "Plataforma de compatibilização, controle documental, ocorrências, impactos, "
-    "planejamento, mudanças, relatórios, coordenação BIM IFC e inteligência documental PDF."
+    "planejamento, mudanças, relatórios profissionais em PDF, coordenação BIM IFC "
+    "e inteligência documental PDF."
 )
 app.openapi_schema = None
 
@@ -78,7 +72,7 @@ app.openapi_schema = None
 def current_health():
     return {
         "ok": True,
-        "version": "9.1-pdf-intelligence",
+        "version": "9.2-professional-reports",
         "environment": "vercel",
         "maxUploadMb": 50,
         "storage": "supabase-private",
@@ -87,12 +81,12 @@ def current_health():
         "documentEngine": "coordination-document-and-interface-v1",
         "pdfEngine": "pypdf-6.1.1",
         "geometricEngine": "ifcopenshell-0.8.5",
-        "reports": "reportlab-5.0.0",
+        "reports": "reportlab-5.0.0-professional-templates",
+        "reportTemplates": ["executive", "coordination", "operational", "change_control"],
         "completeStatus": "/api/platform/complete-status",
     }
 
 
-# Stable compatibility alias for the professional login screen.
 @app.get("/api/auth/professional-status", include_in_schema=False)
 def professional_status_compatibility_alias():
     import professional_auth_v3 as auth
@@ -150,6 +144,24 @@ def pdf_platform_styles():
     )
 
 
+@app.get("/report-ui.js", include_in_schema=False)
+def professional_report_client():
+    return Response(
+        (BASE / "report-ui.js").read_text(encoding="utf-8"),
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-store, max-age=0, must-revalidate"},
+    )
+
+
+@app.get("/report-ui.css", include_in_schema=False)
+def professional_report_styles():
+    return Response(
+        (BASE / "report-ui.css").read_text(encoding="utf-8"),
+        media_type="text/css",
+        headers={"Cache-Control": "no-store, max-age=0, must-revalidate"},
+    )
+
+
 @app.get("/app", include_in_schema=False)
 def current_app_page(vaelith_session: str | None = Cookie(None)):
     if not server.current_user(vaelith_session):
@@ -161,11 +173,11 @@ def current_app_page(vaelith_session: str | None = Cookie(None)):
     )
     html = html.replace(
         "</head>",
-        '<link rel="stylesheet" href="/complete-ui.css?v=20260802-0001"><link rel="stylesheet" href="/pdf-ui.css?v=20260802-0001"></head>',
+        '<link rel="stylesheet" href="/complete-ui.css?v=20260802-0015"><link rel="stylesheet" href="/pdf-ui.css?v=20260802-0015"><link rel="stylesheet" href="/report-ui.css?v=20260802-0015"></head>',
     )
     html = html.replace(
         "</body>",
-        '<script src="/complete-ui.js?v=20260802-0001"></script><script src="/pdf-ui.js?v=20260802-0001"></script></body>',
+        '<script src="/complete-ui.js?v=20260802-0015"></script><script src="/pdf-ui.js?v=20260802-0015"></script><script src="/report-ui.js?v=20260802-0015"></script></body>',
     )
     return HTMLResponse(
         html,
@@ -185,4 +197,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-08-02T00:01-03:00-pdf-intelligence"
+PRODUCTION_RUNTIME_BUILD = "2026-08-02T00:15-03:00-professional-reports"
