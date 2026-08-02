@@ -6,3 +6,4 @@ psycopg[binary]==3.2.10
 supabase==2.31.0
 ifcopenshell==0.8.5
 reportlab==5.0.0
+pypdf==6.1.1
