@@ -14,6 +14,7 @@ from supabase_runtime import install as install_storage
 from storage_selftest import install as install_storage_selftest
 from complete_runtime_v1 import install as install_complete_runtime
 from complete_runtime_patch import install as install_complete_runtime_patch
+from pdf_runtime import install as install_pdf_runtime
 from complete_status import install as install_complete_status
 
 BASE = Path(__file__).resolve().parent
@@ -50,25 +51,25 @@ if not any(getattr(route, "path", None) == "/api/storage/self-test" for route in
     install_storage_selftest(app)
 
 # The storage runtime also registers legacy health metadata. Remove it after
-# storage installation so the single authoritative Complete V1 route can be
-# registered below without a route-order collision.
+# storage installation so the single authoritative route can be registered below.
 app.router.routes = [
     route for route in app.router.routes
     if getattr(route, "path", None) != "/api/health"
 ]
 
-# Complete V1 modules: revision control, impact consolidation, planning,
-# change control, controlled reports, intelligence, audit trail and IFC BIM.
+# Complete platform modules: revision control, impact consolidation, planning,
+# change control, controlled reports, intelligence, audit trail, IFC BIM and PDF analysis.
 install_complete_runtime(app)
 install_complete_runtime_patch()
+install_pdf_runtime(app)
 install_complete_status(app)
 
 # Publish the same product identity in diagnostics and OpenAPI.
 app.title = "VAELITH Platform"
-app.version = "9.0-complete-v1"
+app.version = "9.1-pdf-intelligence"
 app.description = (
-    "Plataforma de compatibilização, controle documental, ocorrências, "
-    "impactos, planejamento, mudanças, relatórios e coordenação BIM IFC."
+    "Plataforma de compatibilização, controle documental, ocorrências, impactos, "
+    "planejamento, mudanças, relatórios, coordenação BIM IFC e inteligência documental PDF."
 )
 app.openapi_schema = None
 
@@ -77,13 +78,14 @@ app.openapi_schema = None
 def current_health():
     return {
         "ok": True,
-        "version": "9.0-complete-v1",
+        "version": "9.1-pdf-intelligence",
         "environment": "vercel",
         "maxUploadMb": 50,
         "storage": "supabase-private",
         "bucketReady": True,
         "database": "postgresql-shared",
         "documentEngine": "coordination-document-and-interface-v1",
+        "pdfEngine": "pypdf-6.1.1",
         "geometricEngine": "ifcopenshell-0.8.5",
         "reports": "reportlab-5.0.0",
         "completeStatus": "/api/platform/complete-status",
@@ -130,6 +132,24 @@ def complete_platform_styles():
     )
 
 
+@app.get("/pdf-ui.js", include_in_schema=False)
+def pdf_platform_client():
+    return Response(
+        (BASE / "pdf-ui.js").read_text(encoding="utf-8"),
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-store, max-age=0, must-revalidate"},
+    )
+
+
+@app.get("/pdf-ui.css", include_in_schema=False)
+def pdf_platform_styles():
+    return Response(
+        (BASE / "pdf-ui.css").read_text(encoding="utf-8"),
+        media_type="text/css",
+        headers={"Cache-Control": "no-store, max-age=0, must-revalidate"},
+    )
+
+
 @app.get("/app", include_in_schema=False)
 def current_app_page(vaelith_session: str | None = Cookie(None)):
     if not server.current_user(vaelith_session):
@@ -141,11 +161,11 @@ def current_app_page(vaelith_session: str | None = Cookie(None)):
     )
     html = html.replace(
         "</head>",
-        '<link rel="stylesheet" href="/complete-ui.css?v=20260731-2205"></head>',
+        '<link rel="stylesheet" href="/complete-ui.css?v=20260802-0001"><link rel="stylesheet" href="/pdf-ui.css?v=20260802-0001"></head>',
     )
     html = html.replace(
         "</body>",
-        '<script src="/complete-ui.js?v=20260731-2205"></script></body>',
+        '<script src="/complete-ui.js?v=20260802-0001"></script><script src="/pdf-ui.js?v=20260802-0001"></script></body>',
     )
     return HTMLResponse(
         html,
@@ -165,4 +185,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-07-31T19:05-03:00-complete-v1"
+PRODUCTION_RUNTIME_BUILD = "2026-08-02T00:01-03:00-pdf-intelligence"
