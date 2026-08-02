@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import io
 import json
 import re
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
-from pathlib import Path
 
 from fastapi import Cookie, FastAPI, HTTPException, Request
 
@@ -86,14 +86,15 @@ def analyze_pdf(pid: str, fid: str) -> dict:
     raw = _pdf_bytes(file_row)
     try:
         from pypdf import PdfReader
-        reader = PdfReader(raw)
+        reader = PdfReader(io.BytesIO(raw), strict=False)
     except Exception as exc:
         raise HTTPException(422, f"Não foi possível abrir o PDF: {type(exc).__name__}: {str(exc)[:160]}") from exc
 
     chunks: list[str] = []
+    chars = 0
     text_pages = 0
     for index, page in enumerate(reader.pages):
-        if sum(len(x) for x in chunks) >= MAX_TEXT_CHARS:
+        if chars >= MAX_TEXT_CHARS:
             break
         try:
             text = _clean_text(page.extract_text() or "")
@@ -101,7 +102,9 @@ def analyze_pdf(pid: str, fid: str) -> dict:
             text = ""
         if text:
             text_pages += 1
-            chunks.append(f"\n--- PÁGINA {index + 1} ---\n{text}")
+            chunk = f"\n--- PÁGINA {index + 1} ---\n{text}"
+            chunks.append(chunk)
+            chars += len(chunk)
     text_content = "".join(chunks)[:MAX_TEXT_CHARS]
     metadata = {}
     try:
@@ -113,6 +116,7 @@ def analyze_pdf(pid: str, fid: str) -> dict:
         metadata = {}
     pages = len(reader.pages)
     scanned_likely = pages > 0 and text_pages == 0
+    analyzed_at = now()
 
     srv = _server()
     with srv.conn() as c:
@@ -125,8 +129,15 @@ def analyze_pdf(pid: str, fid: str) -> dict:
               char_count=excluded.char_count,text_pages=excluded.text_pages,
               scanned_likely=excluded.scanned_likely,analyzed_at=excluded.analyzed_at
             """,
-            (fid, pid, pages, text_content, json.dumps(metadata, ensure_ascii=False), len(text_content), text_pages, int(scanned_likely), now()),
+            (fid, pid, pages, text_content, json.dumps(metadata, ensure_ascii=False), len(text_content), text_pages, int(scanned_likely), analyzed_at),
         )
+        try:
+            c.execute(
+                "INSERT INTO audit_events(id,project_id,actor,action,entity_type,entity_id,detail,created) VALUES(md5(random()::text || clock_timestamp()::text),?,?,?,?,?,?,?)",
+                (pid, "VAELITH PDF Engine", "pdf.analyzed", "file", fid, json.dumps({"pages": pages, "characters": len(text_content), "scannedLikely": scanned_likely}, ensure_ascii=False), analyzed_at),
+            )
+        except Exception:
+            pass
     return {
         "fileId": fid,
         "name": file_row.get("name"),
@@ -138,7 +149,7 @@ def analyze_pdf(pid: str, fid: str) -> dict:
         "revision": file_row.get("revision"),
         "discipline": file_row.get("discipline"),
         "preview": text_content[:3500],
-        "analyzedAt": now(),
+        "analyzedAt": analyzed_at,
     }
 
 
@@ -258,10 +269,10 @@ def install(app: FastAPI) -> None:
         lines_a = [x.strip() for x in text_a.splitlines() if len(x.strip()) > 2 and not x.startswith("--- PÁGINA")]
         lines_b = [x.strip() for x in text_b.splitlines() if len(x.strip()) > 2 and not x.startswith("--- PÁGINA")]
         set_a, set_b = set(lines_a), set(lines_b)
-        added = [x for x in lines_b if x not in set_a][:MAX_COMPARE_LINES]
-        removed = [x for x in lines_a if x not in set_b][:MAX_COMPARE_LINES]
+        all_added = [x for x in lines_b if x not in set_a]
+        all_removed = [x for x in lines_a if x not in set_b]
         similarity = round(SequenceMatcher(None, text_a[:100_000], text_b[:100_000]).ratio() * 100, 1)
-        return {"fileA": file_a, "fileB": file_b, "similarity": similarity, "added": added, "removed": removed, "addedCount": len([x for x in lines_b if x not in set_a]), "removedCount": len([x for x in lines_a if x not in set_b])}
+        return {"fileA": file_a, "fileB": file_b, "similarity": similarity, "added": all_added[:MAX_COMPARE_LINES], "removed": all_removed[:MAX_COMPARE_LINES], "addedCount": len(all_added), "removedCount": len(all_removed)}
 
     # Extend VAELITH Intelligence with excerpts from PDFs already analyzed.
     try:
