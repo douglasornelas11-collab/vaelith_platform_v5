@@ -9,6 +9,7 @@ REQUIRED_TABLES = (
     "project_reports",
     "audit_events",
     "bim_jobs",
+    "pdf_analyses",
 )
 
 REQUIRED_ROUTES = (
@@ -20,6 +21,9 @@ REQUIRED_ROUTES = (
     "/api/projects/{pid}/intelligence/query",
     "/api/projects/{pid}/bim/analyze",
     "/api/projects/{pid}/audit",
+    "/api/projects/{pid}/pdf",
+    "/api/projects/{pid}/pdf/{fid}/analyze",
+    "/api/projects/{pid}/pdf/compare",
 )
 
 
@@ -32,10 +36,12 @@ def install(app: FastAPI) -> None:
     def complete_status():
         import server
         from complete_runtime_v1 import ensure_schema
+        from pdf_runtime import _ensure_schema as ensure_pdf_schema
 
         errors: list[str] = []
         try:
             ensure_schema()
+            ensure_pdf_schema()
             with server.conn() as connection:
                 rows = connection.execute(
                     "SELECT table_name FROM information_schema.tables "
@@ -69,35 +75,51 @@ def install(app: FastAPI) -> None:
         try:
             import reportlab
             from reportlab.pdfgen import canvas
-            pdf = {
+            report_pdf = {
                 "available": True,
                 "version": getattr(reportlab, "Version", None)
                 or getattr(reportlab, "__version__", None),
                 "canvas": bool(canvas),
             }
         except Exception as exc:
-            pdf = {"available": False, "error": f"{type(exc).__name__}: {str(exc)[:180]}"}
-            errors.append(f"pdf: {pdf['error']}")
+            report_pdf = {"available": False, "error": f"{type(exc).__name__}: {str(exc)[:180]}"}
+            errors.append(f"report-pdf: {report_pdf['error']}")
+
+        try:
+            import pypdf
+            from pypdf import PdfReader
+            document_pdf = {
+                "available": True,
+                "version": getattr(pypdf, "__version__", None),
+                "reader": bool(PdfReader),
+                "textExtraction": True,
+                "revisionComparison": route_status.get("/api/projects/{pid}/pdf/compare", False),
+            }
+        except Exception as exc:
+            document_pdf = {"available": False, "error": f"{type(exc).__name__}: {str(exc)[:180]}"}
+            errors.append(f"document-pdf: {document_pdf['error']}")
 
         modules = {
             "revisionControl": table_status.get("document_controls", False),
             "impactConsolidation": route_status.get("/api/projects/{pid}/impacts", False),
             "planning": table_status.get("planning_activities", False),
             "changeControl": table_status.get("change_requests", False),
-            "controlledReports": table_status.get("project_reports", False) and pdf.get("available", False),
+            "controlledReports": table_status.get("project_reports", False) and report_pdf.get("available", False),
             "auditTrail": table_status.get("audit_events", False),
             "intelligence": route_status.get("/api/projects/{pid}/intelligence/query", False),
             "bimGeometry": table_status.get("bim_jobs", False) and bim.get("available", False),
+            "pdfIntelligence": table_status.get("pdf_analyses", False) and document_pdf.get("available", False),
         }
         return {
             "ok": all(table_status.values())
             and all(route_status.values())
             and all(modules.values()),
-            "version": "complete-v1",
+            "version": "9.1-pdf-intelligence",
             "modules": modules,
             "tables": table_status,
             "routes": route_status,
             "bim": bim,
-            "pdf": pdf,
+            "reportPdf": report_pdf,
+            "documentPdf": document_pdf,
             "errors": errors,
         }
