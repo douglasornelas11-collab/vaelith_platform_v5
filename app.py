@@ -16,6 +16,7 @@ from complete_runtime_v1 import install as install_complete_runtime
 from complete_runtime_patch import install as install_complete_runtime_patch
 from pdf_runtime import install as install_pdf_runtime
 from professional_report_runtime import install as install_professional_reports
+from report_visual_patch import install as install_report_visual_patch
 from report_selftest import install as install_report_selftest
 from complete_status import install as install_complete_status
 
@@ -56,6 +57,7 @@ install_complete_runtime(app)
 install_complete_runtime_patch()
 install_pdf_runtime(app)
 install_professional_reports(app)
+install_report_visual_patch()
 install_report_selftest(app)
 install_complete_status(app)
 
@@ -175,11 +177,11 @@ def current_app_page(vaelith_session: str | None = Cookie(None)):
     )
     html = html.replace(
         "</head>",
-        '<link rel="stylesheet" href="/complete-ui.css?v=20260802-0025"><link rel="stylesheet" href="/pdf-ui.css?v=20260802-0025"><link rel="stylesheet" href="/report-ui.css?v=20260802-0025"></head>',
+        '<link rel="stylesheet" href="/complete-ui.css?v=20260802-0035"><link rel="stylesheet" href="/pdf-ui.css?v=20260802-0035"><link rel="stylesheet" href="/report-ui.css?v=20260802-0035"></head>',
     )
     html = html.replace(
         "</body>",
-        '<script src="/complete-ui.js?v=20260802-0025"></script><script src="/pdf-ui.js?v=20260802-0025"></script><script src="/report-ui.js?v=20260802-0025"></script></body>',
+        '<script src="/complete-ui.js?v=20260802-0035"></script><script src="/pdf-ui.js?v=20260802-0035"></script><script src="/report-ui.js?v=20260802-0035"></script></body>',
     )
     return HTMLResponse(
         html,
@@ -199,4 +201,4 @@ async def allow_supabase_direct_upload(request, call_next):
     return response
 
 
-PRODUCTION_RUNTIME_BUILD = "2026-08-02T00:25-03:00-professional-reports-verified"
+PRODUCTION_RUNTIME_BUILD = "2026-08-02T00:35-03:00-professional-reports-branded"
