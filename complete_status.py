@@ -24,6 +24,8 @@ REQUIRED_ROUTES = (
     "/api/projects/{pid}/pdf",
     "/api/projects/{pid}/pdf/{fid}/analyze",
     "/api/projects/{pid}/pdf/compare",
+    "/api/reports/templates",
+    "/api/projects/{pid}/professional-reports",
 )
 
 
@@ -105,6 +107,9 @@ def install(app: FastAPI) -> None:
             "planning": table_status.get("planning_activities", False),
             "changeControl": table_status.get("change_requests", False),
             "controlledReports": table_status.get("project_reports", False) and report_pdf.get("available", False),
+            "professionalReportTemplates": route_status.get("/api/reports/templates", False)
+            and route_status.get("/api/projects/{pid}/professional-reports", False)
+            and report_pdf.get("available", False),
             "auditTrail": table_status.get("audit_events", False),
             "intelligence": route_status.get("/api/projects/{pid}/intelligence/query", False),
             "bimGeometry": table_status.get("bim_jobs", False) and bim.get("available", False),
@@ -114,7 +119,7 @@ def install(app: FastAPI) -> None:
             "ok": all(table_status.values())
             and all(route_status.values())
             and all(modules.values()),
-            "version": "9.1-pdf-intelligence",
+            "version": "9.2-professional-reports",
             "modules": modules,
             "tables": table_status,
             "routes": route_status,
